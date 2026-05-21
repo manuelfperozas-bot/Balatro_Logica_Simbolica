@@ -5,14 +5,18 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
-import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.mijuego.MainGame;
@@ -23,55 +27,117 @@ public class MainMenuScreen implements Screen {
     private Stage stage;
     private Skin skin;
 
+    // Texturas para los recursos visuales Pixel Art
+    private Texture textureBackground;
+    private Texture textureLogo;
+    private Texture textureBannerTop;
+    private Texture textureBtnInicio;
+    private Texture textureBtnConfig;
+
     public MainMenuScreen(final MainGame game) {
         this.game = game;
 
-        // Al pasarle solo el Viewport, el Stage crea su propio Batch internamente.
-        // Esto evita el error de referencia con game.batch.
+        // El Stage gestiona todos los widgets de UI en la resolución virtual
         this.stage = new Stage(new FitViewport(game.VIRTUAL_WIDTH, game.VIRTUAL_HEIGHT));
-
-        // Gdx.input.setInputProcessor le dice al juego que escuche los clics del mouse en esta pantalla
         Gdx.input.setInputProcessor(stage);
 
-        createBasicSkin(); // Crea estilos temporales para los botones y textos
-        setupUI();         // Estructura la pantalla
+        // Cargamos todas las texturas de la pantalla de inicio
+        loadTextures();
+
+        createBasicSkin(); // Genera estilos de respaldo para etiquetas y botones comunes
+        setupUI();         // Distribuye los componentes usando tablas
+    }
+
+    private void loadTextures() {
+        // Carga de archivos de recursos
+        textureBackground = new Texture("fondo_mesa.png");
+        textureLogo = new Texture("logo_juego.png");
+        textureBannerTop = new Texture("banner_top.png");
+        textureBtnInicio = new Texture("btn_inicio.png");
+        textureBtnConfig = new Texture("btn_config.png");
+
+        // FILTRO RETRO OBLIGATORIO: Evita bordes difusos y mantiene nitidez extrema
+        textureBackground.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+        textureLogo.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+        textureBannerTop.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+        textureBtnInicio.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+        textureBtnConfig.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
     }
 
     private void setupUI() {
-        // Table es la herramienta principal de LibGDX para alinear cosas en pantalla (como una tabla HTML)
         Table mainTable = new Table();
-        mainTable.setFillParent(true); // Ocupa toda la pantalla
+        mainTable.setFillParent(true);
         stage.addActor(mainTable);
 
-        // 1. TÍTULO DEL JUEGO (Arriba al centro)
-        Label titleLabel = new Label("BALATRO: LOGICA SIMBOLICA", skin);
-        titleLabel.setFontScale(2.5f); // Hacemos el título más grande
-        mainTable.add(titleLabel).expandX().padTop(50).row();
+        // 1. LOGO PRINCIPAL DEL JUEGO
+        Image logoImg = new Image(new TextureRegionDrawable(new TextureRegion(textureLogo)));
+        mainTable.add(logoImg).width(440).height(220).padTop(15).padBottom(5).row();
 
-        // 2. TABLA DEL TOP 3 (Centro)
+        // 2. TABLA DEL LEADERBOARD CON EL BANNER Y LA PLACA DE PUNTUACIONES (Sin fondos cuadrados)
         Table leaderboardTable = new Table();
-        leaderboardTable.add(new Label("--- TOP 3 JUGADORES ---", skin)).padBottom(20).row();
-        leaderboardTable.add(new Label("1. Aristoteles - 50,000", skin)).padBottom(10).row();
-        leaderboardTable.add(new Label("2. Boole - 35,000", skin)).padBottom(10).row();
-        leaderboardTable.add(new Label("3. Turing - 28,000", skin)).padBottom(30).row();
 
-        // Añadimos botón para ver el top completo
-        TextButton btnFullTop = new TextButton("Ver Top Completo", skin);
-        leaderboardTable.add(btnFullTop).padBottom(50);
+        // Banner Ornamental del "Top de Jugadores"
+        Image bannerTopImg = new Image(new TextureRegionDrawable(new TextureRegion(textureBannerTop)));
+        leaderboardTable.add(bannerTopImg).width(360).height(120).padBottom(15).row();
 
+        // Sub-tabla transparente para alinear las puntuaciones de manera limpia en columnas
+        Table scoreGrid = new Table();
+        scoreGrid.pad(5, 10, 5, 10);
+
+        // Componentes para el 1er Lugar (Oro)
+        Label lbPos1 = new Label("1ro:", skin, "first_place");
+        Label lbName1 = new Label("Aristoteles", skin, "first_place");
+        Label lbScore1 = new Label("50,000 pts", skin, "first_place");
+
+        // Componentes para el 2do Lugar (Plata)
+        Label lbPos2 = new Label("2do:", skin, "second_place");
+        Label lbName2 = new Label("Boole", skin, "second_place");
+        Label lbScore2 = new Label("35,000 pts", skin, "second_place");
+
+        // Componentes para el 3er Lugar (Bronce)
+        Label lbPos3 = new Label("3ro:", skin, "third_place");
+        Label lbName3 = new Label("Turing", skin, "third_place");
+        Label lbScore3 = new Label("28,000 pts", skin, "third_place");
+
+        // Aplicamos el escalado de fuente homogéneo
+        float scale = 1.3f;
+        lbPos1.setFontScale(scale); lbName1.setFontScale(scale); lbScore1.setFontScale(scale);
+        lbPos2.setFontScale(scale); lbName2.setFontScale(scale); lbScore2.setFontScale(scale);
+        lbPos3.setFontScale(scale); lbName3.setFontScale(scale); lbScore3.setFontScale(scale);
+
+        // Añadimos la primera fila alineando posición, nombre y puntaje
+        scoreGrid.add(lbPos1).left().padRight(20);
+        scoreGrid.add(lbName1).left().width(200).padRight(30);
+        scoreGrid.add(lbScore1).right().row();
+
+        // Añadimos la segunda fila con espaciado vertical
+        scoreGrid.add(lbPos2).left().padRight(20).padTop(10);
+        scoreGrid.add(lbName2).left().width(200).padRight(30).padTop(10);
+        scoreGrid.add(lbScore2).right().padTop(10).row();
+
+        // Añadimos la tercera fila
+        scoreGrid.add(lbPos3).left().padRight(20).padTop(10);
+        scoreGrid.add(lbName3).left().width(200).padRight(30).padTop(10);
+        scoreGrid.add(lbScore3).right().padTop(10).row();
+
+        // Acoplamos la rejilla de puntajes alineada al leaderboard
+        leaderboardTable.add(scoreGrid).width(380).row();
         mainTable.add(leaderboardTable).expand().center().row();
 
-        // 3. BOTONES INFERIORES (Abajo centrados)
+        // 3. BOTONES DE ACCIÓN PIXEL ART (Abajo centrados horizontales)
         Table buttonTable = new Table();
-        TextButton btnPlay = new TextButton("INICIAR JUEGO", skin);
-        TextButton btnConfig = new TextButton("CONFIGURACION", skin);
 
-        // Añadir eventos a los botones
+        TextureRegionDrawable drawableInicio = new TextureRegionDrawable(new TextureRegion(textureBtnInicio));
+        TextureRegionDrawable drawableConfig = new TextureRegionDrawable(new TextureRegion(textureBtnConfig));
+
+        ImageButton btnPlay = new ImageButton(drawableInicio);
+        ImageButton btnConfig = new ImageButton(drawableConfig);
+
+        // Gestión de transiciones y eventos
         btnPlay.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 System.out.println("Cargando la mesa de juego...");
-                // Aquí cambiaremos a la GameScreen más adelante
                 // game.setScreen(new GameScreen(game));
             }
         });
@@ -83,40 +149,36 @@ public class MainMenuScreen implements Screen {
             }
         });
 
-        buttonTable.add(btnPlay).width(300).height(60).padBottom(20).row();
-        buttonTable.add(btnConfig).width(300).height(60);
+        // Posicionamiento estético de botones inferiores
+        buttonTable.add(btnPlay).width(240).height(120).padRight(25);
+        buttonTable.add(btnConfig).width(240).height(120);
 
-        mainTable.add(buttonTable).expandX().padBottom(50);
+        mainTable.add(buttonTable).expandX().padBottom(25);
     }
 
-    // --- Método temporal para generar botones sin necesitar archivos de imagen externos ---
     private void createBasicSkin() {
         skin = new Skin();
         skin.add("default", new BitmapFont());
 
-        // Textura gris oscura para el botón normal
-        Pixmap pixmapUp = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
-        pixmapUp.setColor(Color.DARK_GRAY);
-        pixmapUp.fill();
-        skin.add("button_up", new Texture(pixmapUp));
+        // Estilos para el texto de los tres primeros lugares con colores contrastados sobre el fondo
+        // Oro brillante para primer lugar
+        Label.LabelStyle firstStyle = new Label.LabelStyle();
+        firstStyle.font = skin.getFont("default");
+        firstStyle.fontColor = new Color(0.95f, 0.82f, 0.23f, 1f);
 
-        // Textura gris clara para cuando presionas el botón
-        Pixmap pixmapDown = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
-        pixmapDown.setColor(Color.LIGHT_GRAY);
-        pixmapDown.fill();
-        skin.add("button_down", new Texture(pixmapDown));
+        // Plata para segundo lugar
+        Label.LabelStyle secondStyle = new Label.LabelStyle();
+        secondStyle.font = skin.getFont("default");
+        secondStyle.fontColor = new Color(0.85f, 0.85f, 0.85f, 1f);
 
-        // Configurar estilos
-        TextButton.TextButtonStyle buttonStyle = new TextButton.TextButtonStyle();
-        buttonStyle.up = skin.newDrawable("button_up");
-        buttonStyle.down = skin.newDrawable("button_down");
-        buttonStyle.font = skin.getFont("default");
-        skin.add("default", buttonStyle);
+        // Bronce para tercer lugar
+        Label.LabelStyle thirdStyle = new Label.LabelStyle();
+        thirdStyle.font = skin.getFont("default");
+        thirdStyle.fontColor = new Color(0.80f, 0.58f, 0.42f, 1f);
 
-        Label.LabelStyle labelStyle = new Label.LabelStyle();
-        labelStyle.font = skin.getFont("default");
-        labelStyle.fontColor = Color.WHITE;
-        skin.add("default", labelStyle);
+        skin.add("first_place", firstStyle);
+        skin.add("second_place", secondStyle);
+        skin.add("third_place", thirdStyle);
     }
 
     @Override
@@ -124,10 +186,15 @@ public class MainMenuScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        // Fondo color morado oscuro (estilo noche/cartas)
-        ScreenUtils.clear(0.15f, 0.1f, 0.2f, 1);
+        // Limpiamos los buffers de pantalla
+        ScreenUtils.clear(0, 0, 0, 1);
 
-        // Actualizamos y dibujamos el Stage (UI)
+        // Dibujamos primero la textura de fondo escalada sobre el lote del Stage
+        stage.getBatch().begin();
+        stage.getBatch().draw(textureBackground, 0, 0, game.VIRTUAL_WIDTH, game.VIRTUAL_HEIGHT);
+        stage.getBatch().end();
+
+        // Actualizamos y pintamos los widgets que están por encima
         stage.act(Math.min(Gdx.graphics.getDeltaTime(), 1 / 30f));
         stage.draw();
     }
@@ -150,5 +217,12 @@ public class MainMenuScreen implements Screen {
     public void dispose() {
         stage.dispose();
         skin.dispose();
+
+        // Liberar de manera estricta todos los buffers gráficos de las texturas
+        if (textureBackground != null) textureBackground.dispose();
+        if (textureLogo != null) textureLogo.dispose();
+        if (textureBannerTop != null) textureBannerTop.dispose();
+        if (textureBtnInicio != null) textureBtnInicio.dispose();
+        if (textureBtnConfig != null) textureBtnConfig.dispose();
     }
 }
