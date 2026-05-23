@@ -169,6 +169,7 @@ public class MainMenuScreen implements Screen {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 System.out.println("Abriendo configuraciones...");
+                game.setScreen(new ConfigScreen(game));
             }
         });
 
