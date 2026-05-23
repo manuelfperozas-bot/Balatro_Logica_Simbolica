@@ -35,7 +35,7 @@ public class ConfigScreen implements Screen {
     // Texturas
     private Texture textureBackground;
 
-    // Variables de configuración de estado estático (Valores de 0 a 10)
+    // Variables de configuración de estado estático global (Valores de 0 a 10)
     private static int brilloNivel = 10; // 10 = Brillo Máximo
     private static int volumenNivel = 7;
 
@@ -52,6 +52,15 @@ public class ConfigScreen implements Screen {
         loadTextures();
         createBasicSkin();
         setupUI();
+    }
+
+    // Métodos estáticos públicos para que cualquier pantalla pueda leer los ajustes actuales
+    public static int getBrilloNivel() {
+        return brilloNivel;
+    }
+
+    public static int getVolumenNivel() {
+        return volumenNivel;
     }
 
     private void loadTextures() {
