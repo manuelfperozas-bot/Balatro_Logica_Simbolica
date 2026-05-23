@@ -1,5 +1,12 @@
 [
-  { "name": "Manuel", "score": 50000 },
-  { "name": "Maurizio", "score": 35000 },
-  { "name": "Pedro", "score": 28000 }
+{
+	"class": "com.mijuego.data.PlayerScore",
+	"name": "Manuel",
+	"score": 35000
+},
+{
+	"class": "com.mijuego.data.PlayerScore",
+	"name": "Maurizio",
+	"score": 28000
+}
 ]
