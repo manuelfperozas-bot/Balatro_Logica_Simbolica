@@ -20,12 +20,19 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.mijuego.MainGame;
+import com.mijuego.data.LeaderboardManager;
+import com.mijuego.data.PlayerScore;
+
+import java.util.ArrayList;
 
 public class MainMenuScreen implements Screen {
 
     private final MainGame game;
     private Stage stage;
     private Skin skin;
+
+    // Gestor de persistencia de datos
+    private LeaderboardManager leaderboardManager;
 
     // Texturas para los recursos visuales Pixel Art
     private Texture textureBackground;
@@ -40,6 +47,9 @@ public class MainMenuScreen implements Screen {
         // El Stage gestiona todos los widgets de UI en la resolución virtual
         this.stage = new Stage(new FitViewport(game.VIRTUAL_WIDTH, game.VIRTUAL_HEIGHT));
         Gdx.input.setInputProcessor(stage);
+
+        // Inicializamos el gestor que procesa la lectura y escritura del JSON
+        this.leaderboardManager = new LeaderboardManager();
 
         // Cargamos todas las texturas de la pantalla de inicio
         loadTextures();
@@ -84,20 +94,33 @@ public class MainMenuScreen implements Screen {
         Table scoreGrid = new Table();
         scoreGrid.pad(5, 10, 5, 10);
 
+        // Obtenemos las puntuaciones reales ordenadas desde el archivo JSON
+        ArrayList<PlayerScore> scores = leaderboardManager.getScores();
+
+        // Fallbacks por seguridad para evitar excepciones si el archivo se daña o está vacío
+        String name1 = scores.size() > 0 ? scores.get(0).getName() : "---";
+        String val1 = scores.size() > 0 ? String.format("%,d pts", scores.get(0).getScore()) : "0 pts";
+
+        String name2 = scores.size() > 1 ? scores.get(1).getName() : "---";
+        String val2 = scores.size() > 1 ? String.format("%,d pts", scores.get(1).getScore()) : "0 pts";
+
+        String name3 = scores.size() > 2 ? scores.get(2).getName() : "---";
+        String val3 = scores.size() > 2 ? String.format("%,d pts", scores.get(2).getScore()) : "0 pts";
+
         // Componentes para el 1er Lugar (Oro)
         Label lbPos1 = new Label("1ro:", skin, "first_place");
-        Label lbName1 = new Label("Aristoteles", skin, "first_place");
-        Label lbScore1 = new Label("50,000 pts", skin, "first_place");
+        Label lbName1 = new Label(name1, skin, "first_place");
+        Label lbScore1 = new Label(val1, skin, "first_place");
 
         // Componentes para el 2do Lugar (Plata)
         Label lbPos2 = new Label("2do:", skin, "second_place");
-        Label lbName2 = new Label("Boole", skin, "second_place");
-        Label lbScore2 = new Label("35,000 pts", skin, "second_place");
+        Label lbName2 = new Label(name2, skin, "second_place");
+        Label lbScore2 = new Label(val2, skin, "second_place");
 
         // Componentes para el 3er Lugar (Bronce)
         Label lbPos3 = new Label("3ro:", skin, "third_place");
-        Label lbName3 = new Label("Turing", skin, "third_place");
-        Label lbScore3 = new Label("28,000 pts", skin, "third_place");
+        Label lbName3 = new Label(name3, skin, "third_place");
+        Label lbScore3 = new Label(val3, skin, "third_place");
 
         // Aplicamos el escalado de fuente homogéneo
         float scale = 1.3f;
