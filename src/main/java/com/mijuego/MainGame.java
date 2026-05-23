@@ -42,6 +42,9 @@ public class MainGame extends Game {
         filtroBrilloTexture = new Texture(pixmap);
         pixmap.dispose(); // Liberamos de inmediato el pixmap en la CPU
 
+        // Sincronizamos la cámara inicialmente
+        viewport.apply();
+
         // Iniciamos el juego mostrando la pantalla del menú principal
         this.setScreen(new MainMenuScreen(this));
     }
@@ -53,28 +56,33 @@ public class MainGame extends Game {
 
         // 2. CAPA DE BRILLO CENTRALIZADA MULTIPLATAFORMA
         // Usar SpriteBatch con una textura de 1x1 es infinitamente más robusto en LibGDX
-        // que usar ShapeRenderer, ya que hereda y gestiona correctamente todos los estados
+        // que usar ShapeRenderer, ya que hereda y gesiona correctamente todos los estados
         // de mezcla (Blending) e iluminación sin verse afectado por el renderizado de Scene2D (Stage).
         if (brilloNivel < 10) {
             float factorOscuridad = (10 - brilloNivel) * 0.08f;
 
-            // Sincronizamos las coordenadas del viewport del juego
+            // Sincronizamos las coordenadas del viewport del juego y aplicamos la cámara antes del dibujado
             viewport.apply();
             batch.setProjectionMatrix(viewport.getCamera().combined);
 
+            // Habilitamos mezcla de transparencias OpenGL para que actúe de manera correcta
+            Gdx.gl.glEnable(GL20.GL_BLEND);
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
             // Iniciamos el lote de dibujo, aplicando el filtro de color negro translúcido
             batch.begin();
-            batch.setColor(0, 0, 0, factorOscuridad);
+            batch.setColor(0f, 0f, 0f, factorOscuridad);
             batch.draw(filtroBrilloTexture, 0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
             batch.end();
 
-            // Restablecemos el color del lote a blanco para no afectar futuros dibujados
+            // Restablecemos el color del lote a blanco para no afectar futuros dibujados de otras texturas
             batch.setColor(Color.WHITE);
         }
     }
 
     @Override
     public void resize(int width, int height) {
+        // Actualiza el tamaño físico de la ventana virtual y resetea la proyección de la cámara
         viewport.update(width, height, true);
         super.resize(width, height);
     }

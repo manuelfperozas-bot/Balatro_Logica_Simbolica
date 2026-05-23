@@ -14,6 +14,8 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
@@ -30,16 +32,17 @@ public class ConfigScreen implements Screen {
     private final MainGame game;
     private Stage stage;
     private Skin skin;
-    private ShapeRenderer shapeRenderer;
+    private ShapeRenderer shapeRenderer; // Se usa para dibujar el fondo del panel de administrador
 
-    // Texturas
+    // Texturas de interfaz cargadas desde resources
     private Texture textureBackground;
+    private Texture textureBannerConf;
+    private Texture textureBtnMas;
+    private Texture textureBtnMenos;
+    private Texture textureBtnAdmin;
+    private Texture textureBtnVolMenu;
 
-    // Variables de configuración de estado estático global (Valores de 0 a 10)
-    private static int brilloNivel = 10; // 10 = Brillo Máximo
-    private static int volumenNivel = 7;
-
-    // Estado de la capa de visualización
+    // Estado de la capa de visualización de administrador
     private boolean panelAdminAbierto = false;
     private String adminMensajeInfo = "";
 
@@ -54,43 +57,44 @@ public class ConfigScreen implements Screen {
         setupUI();
     }
 
-    // Métodos estáticos públicos para que cualquier pantalla pueda leer los ajustes actuales
-    public static int getBrilloNivel() {
-        return brilloNivel;
-    }
-
-    public static int getVolumenNivel() {
-        return volumenNivel;
-    }
-
     private void loadTextures() {
+        // Carga de imágenes desde resources
         textureBackground = new Texture("fondo_mesa.png");
+        textureBannerConf = new Texture("banner_AjusConf.png");
+        textureBtnMas = new Texture("boton_mas.png");
+        textureBtnMenos = new Texture("boton_menos.png");
+        textureBtnAdmin = new Texture("boton_Admin.png");
+        textureBtnVolMenu = new Texture("boton_VolMenu.png");
+
+        // FILTRO RETRO: Crucial para mantener los píxeles afilados y limpios sin borrosidad
         textureBackground.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+        textureBannerConf.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+        textureBtnMas.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+        textureBtnMenos.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+        textureBtnAdmin.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+        textureBtnVolMenu.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
     }
 
     private void createBasicSkin() {
         skin = new Skin();
         skin.add("default", new BitmapFont());
 
-        // Textura gris oscuro para el fondo de botones
+        // Texturas básicas de respaldo para los cuadros de diálogo (Popups)
         Pixmap pixUp = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
-        pixUp.setColor(new Color(0.25f, 0.15f, 0.1f, 1f)); // Café oscuro
+        pixUp.setColor(new Color(0.25f, 0.15f, 0.1f, 1f));
         pixUp.fill();
         skin.add("btn_up", new Texture(pixUp));
 
-        // Textura gris claro para cuando se presiona un botón
         Pixmap pixDown = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixDown.setColor(new Color(0.4f, 0.25f, 0.15f, 1f));
         pixDown.fill();
         skin.add("btn_down", new Texture(pixDown));
 
-        // Textura blanca para cajas de texto de inputs
         Pixmap pixWhite = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixWhite.setColor(Color.WHITE);
         pixWhite.fill();
         skin.add("white_bg", new Texture(pixWhite));
 
-        // Estilos para botones
         TextButton.TextButtonStyle btnStyle = new TextButton.TextButtonStyle();
         btnStyle.up = skin.newDrawable("btn_up");
         btnStyle.down = skin.newDrawable("btn_down");
@@ -98,31 +102,23 @@ public class ConfigScreen implements Screen {
         btnStyle.fontColor = Color.GOLD;
         skin.add("default", btnStyle);
 
-        // Estilos para etiquetas
         Label.LabelStyle labelStyle = new Label.LabelStyle();
         labelStyle.font = skin.getFont("default");
         labelStyle.fontColor = Color.WHITE;
         skin.add("default", labelStyle);
 
-        // Estilo específico para panel de administrador
-        Label.LabelStyle adminStyle = new Label.LabelStyle();
-        adminStyle.font = skin.getFont("default");
-        adminStyle.fontColor = Color.GREEN;
-        skin.add("admin_style", adminStyle);
-
-        // Estilos para campos de texto (Clave de administración)
         TextField.TextFieldStyle txtStyle = new TextField.TextFieldStyle();
         txtStyle.font = skin.getFont("default");
         txtStyle.fontColor = Color.BLACK;
         txtStyle.background = skin.newDrawable("white_bg");
 
-        // Cursor básico corregido y libre de fugas de memoria
+        // Cursor básico para el campo de texto
         Pixmap pixCursor = new Pixmap(2, 16, Pixmap.Format.RGBA8888);
         pixCursor.setColor(Color.BLACK);
         pixCursor.fill();
         Texture cursorTex = new Texture(pixCursor);
         txtStyle.cursor = new TextureRegionDrawable(new TextureRegion(cursorTex));
-        pixCursor.dispose(); // Liberación de memoria CPU obligatoria una vez subido a GPU
+        pixCursor.dispose();
 
         skin.add("default", txtStyle);
     }
@@ -132,26 +128,32 @@ public class ConfigScreen implements Screen {
         rootTable.setFillParent(true);
         stage.addActor(rootTable);
 
-        // Título de la sección
-        Label titleLabel = new Label("AJUSTES DE CONFIGURACION", skin);
-        titleLabel.setFontScale(1.8f);
-        rootTable.add(titleLabel).padBottom(40).row();
+        // 1. BANNER DE AJUSTES (Reemplaza el texto plano del título)
+        Image bannerConfImg = new Image(new TextureRegionDrawable(new TextureRegion(textureBannerConf)));
+        rootTable.add(bannerConfImg).width(440).height(145).padTop(10).padBottom(25).row();
 
-        // Contenedor descendente de ajustes
+        // Contenedor de configuraciones
         Table settingsContainer = new Table();
 
+        // Generamos los drawables de tus texturas pixel art
+        TextureRegionDrawable drawableMas = new TextureRegionDrawable(new TextureRegion(textureBtnMas));
+        TextureRegionDrawable drawableMenos = new TextureRegionDrawable(new TextureRegion(textureBtnMenos));
+        TextureRegionDrawable drawableAdmin = new TextureRegionDrawable(new TextureRegion(textureBtnAdmin));
+        TextureRegionDrawable drawableVolMenu = new TextureRegionDrawable(new TextureRegion(textureBtnVolMenu));
+
         // --- FILA 1: CONTROL DE BRILLO ---
-        final Label lbBrilloVal = new Label("Brillo: " + (brilloNivel * 10) + "%", skin);
-        lbBrilloVal.setFontScale(1.2f);
-        TextButton btnBrilloMenos = new TextButton("-", skin);
-        TextButton btnBrilloMas = new TextButton("+", skin);
+        final Label lbBrilloVal = new Label("Brillo: " + (game.getBrilloNivel() * 10) + "%", skin);
+        lbBrilloVal.setFontScale(1.3f);
+        ImageButton btnBrilloMenos = new ImageButton(drawableMenos);
+        ImageButton btnBrilloMas = new ImageButton(drawableMas);
 
         btnBrilloMenos.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                if (brilloNivel > 2) { // Evita oscuridad total (mínimo 20%)
-                    brilloNivel--;
-                    lbBrilloVal.setText("Brillo: " + (brilloNivel * 10) + "%");
+                int brillo = game.getBrilloNivel();
+                if (brillo > 2) {
+                    game.setBrilloNivel(brillo - 1);
+                    lbBrilloVal.setText("Brillo: " + (game.getBrilloNivel() * 10) + "%");
                 }
             }
         });
@@ -159,31 +161,33 @@ public class ConfigScreen implements Screen {
         btnBrilloMas.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                if (brilloNivel < 10) {
-                    brilloNivel++;
-                    lbBrilloVal.setText("Brillo: " + (brilloNivel * 10) + "%");
+                int brillo = game.getBrilloNivel();
+                if (brillo < 10) {
+                    game.setBrilloNivel(brillo + 1);
+                    lbBrilloVal.setText("Brillo: " + (game.getBrilloNivel() * 10) + "%");
                 }
             }
         });
 
         Table brilloRow = new Table();
-        brilloRow.add(lbBrilloVal).width(150).left();
-        brilloRow.add(btnBrilloMenos).width(50).height(40).padRight(10);
-        brilloRow.add(btnBrilloMas).width(50).height(40);
-        settingsContainer.add(brilloRow).padBottom(25).row();
+        brilloRow.add(lbBrilloVal).width(160).left();
+        brilloRow.add(btnBrilloMenos).width(50).height(50).padRight(15);
+        brilloRow.add(btnBrilloMas).width(50).height(50);
+        settingsContainer.add(brilloRow).padBottom(20).row();
 
         // --- FILA 2: CONTROL DE VOLUMEN ---
-        final Label lbVolumenVal = new Label("Volumen: " + (volumenNivel * 10) + "%", skin);
-        lbVolumenVal.setFontScale(1.2f);
-        TextButton btnVolumenMenos = new TextButton("-", skin);
-        TextButton btnVolumenMas = new TextButton("+", skin);
+        final Label lbVolumenVal = new Label("Volumen: " + (game.getVolumenNivel() * 10) + "%", skin);
+        lbVolumenVal.setFontScale(1.3f);
+        ImageButton btnVolumenMenos = new ImageButton(drawableMenos);
+        ImageButton btnVolumenMas = new ImageButton(drawableMas);
 
         btnVolumenMenos.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                if (volumenNivel > 0) {
-                    volumenNivel--;
-                    lbVolumenVal.setText("Volumen: " + (volumenNivel * 10) + "%");
+                int volumen = game.getVolumenNivel();
+                if (volumen > 0) {
+                    game.setVolumenNivel(volumen - 1);
+                    lbVolumenVal.setText("Volumen: " + (game.getVolumenNivel() * 10) + "%");
                 }
             }
         });
@@ -191,51 +195,47 @@ public class ConfigScreen implements Screen {
         btnVolumenMas.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                if (volumenNivel < 10) {
-                    volumenNivel++;
-                    lbVolumenVal.setText("Volumen: " + (volumenNivel * 10) + "%");
+                int volumen = game.getVolumenNivel();
+                if (volumen < 10) {
+                    game.setVolumenNivel(volumen + 1);
+                    lbVolumenVal.setText("Volumen: " + (game.getVolumenNivel() * 10) + "%");
                 }
             }
         });
 
         Table volumenRow = new Table();
-        volumenRow.add(lbVolumenVal).width(150).left();
-        volumenRow.add(btnVolumenMenos).width(50).height(40).padRight(10);
-        volumenRow.add(btnVolumenMas).width(50).height(40);
+        volumenRow.add(lbVolumenVal).width(160).left();
+        volumenRow.add(btnVolumenMenos).width(50).height(50).padRight(15);
+        volumenRow.add(btnVolumenMas).width(50).height(50);
         settingsContainer.add(volumenRow).padBottom(25).row();
 
         // --- FILA 3: BOTÓN DE ADMINISTRACIÓN ---
-        TextButton btnAdmin = new TextButton("ADMINISTRACION", skin);
+        ImageButton btnAdmin = new ImageButton(drawableAdmin);
         btnAdmin.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 solicitarClaveAcceso();
             }
         });
-        settingsContainer.add(btnAdmin).width(260).height(50).padBottom(40).row();
+        settingsContainer.add(btnAdmin).width(240).height(120).padBottom(20).row();
 
         rootTable.add(settingsContainer).row();
 
-        // Botón para regresar al menú principal
-        TextButton btnVolver = new TextButton("VOLVER AL MENU", skin);
+        // --- BOTÓN DE VOLVER AL MENÚ ---
+        ImageButton btnVolver = new ImageButton(drawableVolMenu);
         btnVolver.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 game.setScreen(new MainMenuScreen(game));
             }
         });
-        rootTable.add(btnVolver).width(200).height(45).padTop(10);
+        rootTable.add(btnVolver).width(240).height(120).padTop(5);
     }
 
-    /**
-     * Muestra una ventana emergente modal requiriendo contraseña
-     */
     private void solicitarClaveAcceso() {
         final Dialog dialog = new Dialog("ACCESO RESTRINGIDO", skin) {
             @Override
-            protected void result(Object object) {
-                // Sobrescribimos el click para manejarlo de manera sutil e inline
-            }
+            protected void result(Object object) {}
         };
 
         Table dialogTable = new Table();
@@ -259,10 +259,9 @@ public class ConfigScreen implements Screen {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 String input = pfPass.getText();
-                // Clave por defecto para el juego de Lógica Simbólica
                 if ("admin".equalsIgnoreCase(input) || "1234".equals(input)) {
                     panelAdminAbierto = true;
-                    adminMensajeInfo = "MODO ADMINISTRADOR ACTIVADO\n\nControles de depuracion:\n- Mesa desbloqueada\n- Respuestas correctas visibles\n- Restablecer Top 3";
+                    adminMensajeInfo = "MODO ADMINISTRADOR ACTIVADO\n\nControles de depuracion:\n- Mesa de juego desbloqueada\n- Respuestas correctas visibles\n- Restablecer historico de Top 3";
                     dialog.hide();
                 } else {
                     lbError.setText("Clave incorrecta!");
@@ -292,36 +291,22 @@ public class ConfigScreen implements Screen {
     public void render(float delta) {
         ScreenUtils.clear(0, 0, 0, 1);
 
-        // 1. Dibujamos la textura de fondo mesa
+        // 1. Dibujamos la mesa de fondo
         stage.getBatch().begin();
         stage.getBatch().draw(textureBackground, 0, 0, game.VIRTUAL_WIDTH, game.VIRTUAL_HEIGHT);
         stage.getBatch().end();
 
-        // 2. Dibujamos la interfaz interactiva
+        // 2. Pintamos la interfaz de usuario interactiva
         stage.act(Math.min(Gdx.graphics.getDeltaTime(), 1 / 30f));
         stage.draw();
 
-        // 3. CAPA DE BRILLO (Manejo con Shader por transparencia)
-        if (brilloNivel < 10) {
-            // Calcula opacidad de oscuridad (0.0 = Brillo al máximo, 0.8 = Brillo al mínimo/pantalla oscura)
-            float factorOscuridad = (10 - brilloNivel) * 0.08f;
-
+        // 3. Panel Consola de Administrador (Capa local para el panel verde)
+        if (panelAdminAbierto) {
             Gdx.gl.glEnable(GL20.GL_BLEND);
             Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
             shapeRenderer.setProjectionMatrix(stage.getCamera().combined);
             shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-            shapeRenderer.setColor(0, 0, 0, factorOscuridad);
-            shapeRenderer.rect(0, 0, game.VIRTUAL_WIDTH, game.VIRTUAL_HEIGHT);
-            shapeRenderer.end();
-            Gdx.gl.glDisable(GL20.GL_BLEND);
-        }
-
-        // 4. Panel de Administrador si está activo
-        if (panelAdminAbierto) {
-            Gdx.gl.glEnable(GL20.GL_BLEND);
-            shapeRenderer.setProjectionMatrix(stage.getCamera().combined);
-            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-            shapeRenderer.setColor(new Color(0.05f, 0.15f, 0.05f, 0.92f)); // Verde consola translúcido
+            shapeRenderer.setColor(new Color(0.05f, 0.15f, 0.05f, 0.92f));
             shapeRenderer.rect(200, 150, 880, 420);
             shapeRenderer.end();
             Gdx.gl.glDisable(GL20.GL_BLEND);
@@ -331,7 +316,6 @@ public class ConfigScreen implements Screen {
             skin.getFont("default").draw(stage.getBatch(), "[PRESIONE ESC PARA SALIR DEL PANEL]", 480, 200);
             stage.getBatch().end();
 
-            // Detectar tecla de salida para el modo admin
             if (Gdx.input.isKeyJustPressed(Keys.ESCAPE)) {
                 panelAdminAbierto = false;
             }
@@ -357,6 +341,13 @@ public class ConfigScreen implements Screen {
         stage.dispose();
         skin.dispose();
         shapeRenderer.dispose();
+
+        // Liberar estrictamente de la GPU todas las texturas cargadas
         if (textureBackground != null) textureBackground.dispose();
+        if (textureBannerConf != null) textureBannerConf.dispose();
+        if (textureBtnMas != null) textureBtnMas.dispose();
+        if (textureBtnMenos != null) textureBtnMenos.dispose();
+        if (textureBtnAdmin != null) textureBtnAdmin.dispose();
+        if (textureBtnVolMenu != null) textureBtnVolMenu.dispose();
     }
 }
