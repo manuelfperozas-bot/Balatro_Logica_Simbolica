@@ -38,10 +38,8 @@ public class ConfigScreen implements Screen {
     private Skin skin;
     private Table rootTable;
 
-    // Gestor de persistencia de datos
     private LeaderboardManager leaderboardManager;
 
-    // Texturas de interfaz cargadas desde resources
     private Texture textureBackground;
     private Texture textureBannerConf;
     private Texture textureBtnMas;
@@ -49,7 +47,8 @@ public class ConfigScreen implements Screen {
     private Texture textureBtnAdmin;
     private Texture textureBtnVolMenu;
 
-    // Estado de la capa de visualización de administrador
+    private Texture textureBannerConsolaAdmin;
+
     private boolean panelAdminAbierto = false;
 
     public ConfigScreen(final MainGame game) {
@@ -57,46 +56,51 @@ public class ConfigScreen implements Screen {
         this.stage = new Stage(new FitViewport(game.VIRTUAL_WIDTH, game.VIRTUAL_HEIGHT));
         Gdx.input.setInputProcessor(stage);
 
-        // Inicializamos nuestro lector y escritor de archivos JSON
         this.leaderboardManager = new LeaderboardManager();
 
         loadTextures();
         createBasicSkin();
 
-        // Contenedor principal de la UI
         this.rootTable = new Table();
         this.rootTable.setFillParent(true);
         stage.addActor(rootTable);
 
-        // Reconstruimos la interfaz basándonos en el estado actual (Ajustes o Admin)
         rebuildUI();
     }
 
-    private void loadTextures() {
-        // Carga de imágenes desde resources
-        textureBackground = new Texture("fondo_mesa.png");
-        textureBannerConf = new Texture("banner_AjusConf.png");
-        textureBtnMas = new Texture("boton_mas.png");
-        textureBtnMenos = new Texture("boton_menos.png");
-        textureBtnAdmin = new Texture("boton_Admin.png");
-        textureBtnVolMenu = new Texture("boton_VolMenu.png");
+    private Texture loadTextureSafe(String internalPath) {
+        if (Gdx.files.internal(internalPath).exists()) {
+            Texture texture = new Texture(internalPath);
+            texture.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+            return texture;
+        } else {
+            Gdx.app.error("Assets", "¡ATENCION! Falta la textura: " + internalPath);
+            Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+            pixmap.setColor(new Color(1f, 0f, 0f, 0.5f));
+            pixmap.fill();
+            Texture fallbackTexture = new Texture(pixmap);
+            pixmap.dispose();
+            return fallbackTexture;
+        }
+    }
 
-        // FILTRO RETRO: Crucial para mantener los píxeles afilados y limpios sin borrosidad
-        textureBackground.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
-        textureBannerConf.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
-        textureBtnMas.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
-        textureBtnMenos.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
-        textureBtnAdmin.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
-        textureBtnVolMenu.setFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+    private void loadTextures() {
+        textureBackground = loadTextureSafe("fondo_mesa.png");
+        textureBannerConf = loadTextureSafe("banner_AjusConf.png");
+        textureBtnMas = loadTextureSafe("boton_mas.png");
+        textureBtnMenos = loadTextureSafe("boton_menos.png");
+        textureBtnAdmin = loadTextureSafe("boton_Admin.png");
+        textureBtnVolMenu = loadTextureSafe("boton_VolMenu.png");
+
+        textureBannerConsolaAdmin = loadTextureSafe("banner_ConsolaAdmin.png");
     }
 
     private void createBasicSkin() {
         skin = new Skin();
         skin.add("default", new BitmapFont());
 
-        // Texturas básicas de respaldo para los cuadros de diálogo (Popups) y botones del panel
         Pixmap pixUp = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
-        pixUp.setColor(new Color(0.25f, 0.15f, 0.1f, 1f)); // Café oscuro
+        pixUp.setColor(new Color(0.25f, 0.15f, 0.1f, 1f));
         pixUp.fill();
         skin.add("btn_up", new Texture(pixUp));
 
@@ -117,25 +121,11 @@ public class ConfigScreen implements Screen {
         btnStyle.fontColor = Color.GOLD;
         skin.add("default", btnStyle);
 
-        // Estilo especial para botones de eliminación rápida en color rojo oscuro
-        Pixmap pixDeleteUp = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
-        pixDeleteUp.setColor(new Color(0.5f, 0.1f, 0.1f, 1f));
-        pixDeleteUp.fill();
-        skin.add("btn_delete_up", new Texture(pixDeleteUp));
-
-        TextButton.TextButtonStyle deleteBtnStyle = new TextButton.TextButtonStyle();
-        deleteBtnStyle.up = skin.newDrawable("btn_delete_up");
-        deleteBtnStyle.down = skin.newDrawable("btn_down");
-        deleteBtnStyle.font = skin.getFont("default");
-        deleteBtnStyle.fontColor = Color.WHITE;
-        skin.add("delete_style", deleteBtnStyle);
-
         Label.LabelStyle labelStyle = new Label.LabelStyle();
         labelStyle.font = skin.getFont("default");
         labelStyle.fontColor = Color.WHITE;
         skin.add("default", labelStyle);
 
-        // Estilos para el texto destacado del panel administrador
         Label.LabelStyle adminTitleStyle = new Label.LabelStyle();
         adminTitleStyle.font = skin.getFont("default");
         adminTitleStyle.fontColor = Color.GREEN;
@@ -146,7 +136,6 @@ public class ConfigScreen implements Screen {
         txtStyle.fontColor = Color.BLACK;
         txtStyle.background = skin.newDrawable("white_bg");
 
-        // Cursor básico para el campo de texto
         Pixmap pixCursor = new Pixmap(2, 16, Pixmap.Format.RGBA8888);
         pixCursor.setColor(Color.BLACK);
         pixCursor.fill();
@@ -156,12 +145,9 @@ public class ConfigScreen implements Screen {
 
         skin.add("default", txtStyle);
 
-        // --- REGISTRO DEL ESTILO DE VENTANA (OBLIGATORIO PARA EVITAR EL CRASH DEL DIALOG) ---
         Window.WindowStyle windowStyle = new Window.WindowStyle();
-
-        // Generamos un fondo chocolate semitransparente oscuro y estilizado para el cuadro de diálogo
         Pixmap pixWindow = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
-        pixWindow.setColor(new Color(0.18f, 0.11f, 0.07f, 0.96f)); // Café oscuro de alta opacidad
+        pixWindow.setColor(new Color(0.18f, 0.11f, 0.07f, 0.96f));
         pixWindow.fill();
         Texture windowBgTex = new Texture(pixWindow);
         windowStyle.background = new TextureRegionDrawable(new TextureRegion(windowBgTex));
@@ -172,9 +158,6 @@ public class ConfigScreen implements Screen {
         skin.add("default", windowStyle);
     }
 
-    /**
-     * Limpia la interfaz y decide qué pantalla construir en base a las credenciales de administrador
-     */
     private void rebuildUI() {
         rootTable.clearChildren();
 
@@ -185,11 +168,7 @@ public class ConfigScreen implements Screen {
         }
     }
 
-    /**
-     * Construye los ajustes estándar del juego (Brillo, Volumen y Acceso Administrador)
-     */
     private void setupNormalUI() {
-        // 1. BANNER DE AJUSTES
         Image bannerConfImg = new Image(new TextureRegionDrawable(new TextureRegion(textureBannerConf)));
         rootTable.add(bannerConfImg).width(440).height(145).padTop(10).padBottom(25).row();
 
@@ -200,7 +179,6 @@ public class ConfigScreen implements Screen {
         TextureRegionDrawable drawableAdmin = new TextureRegionDrawable(new TextureRegion(textureBtnAdmin));
         TextureRegionDrawable drawableVolMenu = new TextureRegionDrawable(new TextureRegion(textureBtnVolMenu));
 
-        // --- FILA 1: CONTROL DE BRILLO ---
         final Label lbBrilloVal = new Label("Brillo: " + (game.getBrilloNivel() * 10) + "%", skin);
         lbBrilloVal.setFontScale(1.3f);
         ImageButton btnBrilloMenos = new ImageButton(drawableMenos);
@@ -234,7 +212,6 @@ public class ConfigScreen implements Screen {
         brilloRow.add(btnBrilloMas).width(50).height(50);
         settingsContainer.add(brilloRow).padBottom(20).row();
 
-        // --- FILA 2: CONTROL DE VOLUMEN ---
         final Label lbVolumenVal = new Label("Volumen: " + (game.getVolumenNivel() * 10) + "%", skin);
         lbVolumenVal.setFontScale(1.3f);
         ImageButton btnVolumenMenos = new ImageButton(drawableMenos);
@@ -268,7 +245,6 @@ public class ConfigScreen implements Screen {
         volumenRow.add(btnVolumenMas).width(50).height(50);
         settingsContainer.add(volumenRow).padBottom(25).row();
 
-        // --- FILA 3: BOTÓN DE ADMINISTRACIÓN ---
         ImageButton btnAdmin = new ImageButton(drawableAdmin);
         btnAdmin.addListener(new ClickListener() {
             @Override
@@ -280,7 +256,6 @@ public class ConfigScreen implements Screen {
 
         rootTable.add(settingsContainer).row();
 
-        // --- BOTÓN DE VOLVER AL MENÚ ---
         ImageButton btnVolver = new ImageButton(drawableVolMenu);
         btnVolver.addListener(new ClickListener() {
             @Override
@@ -291,80 +266,62 @@ public class ConfigScreen implements Screen {
         rootTable.add(btnVolver).width(240).height(120).padTop(5);
     }
 
-    /**
-     * Construye la consola de administración interactiva para eliminar registros y reiniciar podio
-     */
     private void setupAdminUI() {
-        // Título del Panel de Control
-        Label titleLabel = new Label("CONSOLA DE ADMINISTRADOR", skin, "admin_title");
-        titleLabel.setFontScale(1.8f);
-        rootTable.add(titleLabel).padTop(10).padBottom(15).row();
+        Image bannerConsolaImg = new Image(new TextureRegionDrawable(new TextureRegion(textureBannerConsolaAdmin)));
+        rootTable.add(bannerConsolaImg).width(440).height(145).padTop(10).padBottom(30).row();
 
-        Label descLabel = new Label("Gestion de base de datos y eliminacion de puntuaciones locales:", skin);
-        descLabel.setFontScale(1.1f);
-        rootTable.add(descLabel).padBottom(20).row();
-
-        // Tabla contenedora de la lista de jugadores
         Table scoreListTable = new Table();
-        scoreListTable.pad(15);
+        scoreListTable.pad(10);
 
-        // Encabezados de tabla
         Label hPos = new Label("Puesto", skin);
         Label hName = new Label("Jugador", skin);
         Label hScore = new Label("Puntuacion", skin);
-        Label hAction = new Label("Acciones", skin);
+        Label hAction = new Label("Accion", skin);
 
-        hPos.setFontScale(1.2f); hName.setFontScale(1.2f); hScore.setFontScale(1.2f); hAction.setFontScale(1.2f);
+        hPos.setFontScale(1.15f); hName.setFontScale(1.15f); hScore.setFontScale(1.15f); hAction.setFontScale(1.15f);
 
-        scoreListTable.add(hPos).padRight(30).left();
-        scoreListTable.add(hName).width(180).padRight(30).left();
-        scoreListTable.add(hScore).width(150).padRight(40).left();
-        scoreListTable.add(hAction).center().row();
+        scoreListTable.add(hPos).padRight(20).left();
+        scoreListTable.add(hName).width(150).padRight(20).left();
+        scoreListTable.add(hScore).width(100).padRight(20).left();
+        scoreListTable.add(hAction).left().row();
 
-        // Línea divisoria ornamental
-        Label divider = new Label("─────────────────────────────────────────────────────────────────", skin);
-        scoreListTable.add(divider).colspan(4).padTop(5).padBottom(10).row();
+        Label divider = new Label("──────────────────────────────────────────────────────────────────", skin);
+        scoreListTable.add(divider).colspan(4).padTop(3).padBottom(8).row();
 
-        // Cargamos los registros reales del JSON
         final ArrayList<PlayerScore> scores = leaderboardManager.getScores();
 
         if (scores.isEmpty()) {
-            Label lbEmpty = new Label("No hay registros de puntuaciones guardados en el sistema.", skin);
-            scoreListTable.add(lbEmpty).colspan(4).pad(20).row();
+            Label lbEmpty = new Label("No hay registros.", skin);
+            scoreListTable.add(lbEmpty).colspan(4).pad(15).row();
         } else {
-            for (int i = 0; i < scores.size(); i++) {
-                final int index = i;
-                PlayerScore playerScore = scores.get(i);
+            int registrosAMostrar = Math.min(scores.size(), 5);
+            for (int i = 0; i < registrosAMostrar; i++) {
+                final PlayerScore playerScore = scores.get(i);
 
                 Label lbPos = new Label((i + 1) + "º", skin);
                 Label lbName = new Label(playerScore.getName(), skin);
-                Label lbVal = new Label(String.format("%,d pts", playerScore.getScore()), skin);
-                TextButton btnDelete = new TextButton("ELIMINAR", skin, "delete_style");
+                Label lbVal = new Label(String.format("%,d", playerScore.getScore()), skin);
 
-                lbPos.setFontScale(1.1f); lbName.setFontScale(1.1f); lbVal.setFontScale(1.1f);
-
-                // Evento para remover el registro correspondiente
+                TextButton btnDelete = new TextButton("Eliminar", skin);
                 btnDelete.addListener(new ClickListener() {
                     @Override
                     public void clicked(InputEvent event, float x, float y) {
-                        eliminarRegistroPuntuacion(index);
+                        eliminarJugador(playerScore);
                     }
                 });
 
-                scoreListTable.add(lbPos).padRight(30).left();
-                scoreListTable.add(lbName).width(180).padRight(30).left();
-                scoreListTable.add(lbVal).width(150).padRight(40).left();
-                scoreListTable.add(btnDelete).width(110).height(32).padBottom(6).row();
+                scoreListTable.add(lbPos).padRight(20).left();
+                scoreListTable.add(lbName).width(150).padRight(20).left();
+                scoreListTable.add(lbVal).width(100).padRight(20).left();
+                scoreListTable.add(btnDelete).width(80).height(30).row();
             }
         }
 
         rootTable.add(scoreListTable).expandX().row();
 
-        // Botones de acción general (Reiniciar datos / Salir del panel)
         Table adminActionsTable = new Table();
-
-        TextButton btnReset = new TextButton("Restablecer Top 3", skin);
-        TextButton btnExitAdmin = new TextButton("Salir Modo Admin", skin);
+        TextButton btnReset = new TextButton("Restablecer Top", skin);
+        TextButton btnExitAdmin = new TextButton("Salir", skin);
 
         btnReset.addListener(new ClickListener() {
             @Override
@@ -381,36 +338,31 @@ public class ConfigScreen implements Screen {
             }
         });
 
-        adminActionsTable.add(btnReset).width(200).height(45).padRight(20);
-        adminActionsTable.add(btnExitAdmin).width(200).height(45);
+        adminActionsTable.add(btnReset).width(180).height(42).padRight(20);
+        adminActionsTable.add(btnExitAdmin).width(180).height(42);
 
-        rootTable.add(adminActionsTable).padTop(25).padBottom(15);
+        rootTable.add(adminActionsTable).padTop(15).padBottom(10);
     }
 
-    /**
-     * Remueve la puntuación en el índice seleccionado y guarda de inmediato la lista limpia en el archivo JSON
-     */
-    private void eliminarRegistroPuntuacion(int index) {
-        ArrayList<PlayerScore> scores = leaderboardManager.getScores();
-        if (index >= 0 && index < scores.size()) {
-            scores.remove(index);
-
-            // Guardamos manualmente la lista truncada sobreescribiendo el JSON
-            com.badlogic.gdx.utils.Json jsonHelper = new com.badlogic.gdx.utils.Json();
-            jsonHelper.setOutputType(com.badlogic.gdx.utils.JsonWriter.OutputType.json);
-            com.badlogic.gdx.files.FileHandle fileHandle = Gdx.files.local("leaderboard.json");
-            fileHandle.writeString(jsonHelper.prettyPrint(scores), false);
-
-            System.out.println("Registro eliminado en indice: " + index);
-
-            // Reconstruimos la interfaz gráfica al instante
-            rebuildUI();
+    private void eliminarJugador(PlayerScore score) {
+        ArrayList<PlayerScore> currentScores = leaderboardManager.getScores();
+        // Buscamos el índice exacto para asegurar la eliminación
+        for (int i = 0; i < currentScores.size(); i++) {
+            if (currentScores.get(i).getName().equals(score.getName()) &&
+                    currentScores.get(i).getScore() == score.getScore()) {
+                currentScores.remove(i);
+                break;
+            }
         }
+
+        com.badlogic.gdx.utils.Json jsonHelper = new com.badlogic.gdx.utils.Json();
+        jsonHelper.setOutputType(com.badlogic.gdx.utils.JsonWriter.OutputType.json);
+        com.badlogic.gdx.files.FileHandle fileHandle = Gdx.files.local("leaderboard.json");
+        fileHandle.writeString(jsonHelper.prettyPrint(currentScores), false);
+
+        rebuildUI();
     }
 
-    /**
-     * Sobrescribe el almacenamiento para rellenarlo con las puntuaciones iniciales predeterminadas
-     */
     private void restablecerValoresPorDefecto() {
         ArrayList<PlayerScore> defaultScores = new ArrayList<>();
         defaultScores.add(new PlayerScore("Aristoteles", 50000));
@@ -422,13 +374,9 @@ public class ConfigScreen implements Screen {
         com.badlogic.gdx.files.FileHandle fileHandle = Gdx.files.local("leaderboard.json");
         fileHandle.writeString(jsonHelper.prettyPrint(defaultScores), false);
 
-        System.out.println("Leaderboard restaurado a valores por defecto.");
         rebuildUI();
     }
 
-    /**
-     * Muestra una ventana emergente modal requiriendo la contraseña de seguridad "123456"
-     */
     private void solicitarClaveAcceso() {
         final Dialog dialog = new Dialog("ACCESO RESTRINGIDO", skin) {
             @Override
@@ -437,7 +385,7 @@ public class ConfigScreen implements Screen {
 
         Table dialogTable = new Table();
         dialogTable.pad(15);
-        dialogTable.add(new Label("Ingrese Contrasena de Administrador:", skin)).padBottom(15).row();
+        dialogTable.add(new Label("Ingrese Contrasena:", skin)).padBottom(15).row();
 
         final TextField pfPass = new TextField("", skin);
         pfPass.setPasswordMode(true);
@@ -455,11 +403,9 @@ public class ConfigScreen implements Screen {
         btnOk.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                String input = pfPass.getText();
-                // Verificación de clave de seguridad estricta para el Panel
-                if ("123456".equals(input)) {
+                if ("123456".equals(pfPass.getText())) {
                     panelAdminAbierto = true;
-                    rebuildUI(); // Redibuja el Stage mostrando la lista de gestión
+                    rebuildUI();
                     dialog.hide();
                 } else {
                     lbError.setText("Clave incorrecta!");
@@ -480,6 +426,7 @@ public class ConfigScreen implements Screen {
 
         dialog.getContentTable().add(dialogTable);
         dialog.show(stage);
+        stage.setKeyboardFocus(pfPass);
     }
 
     @Override
@@ -488,13 +435,9 @@ public class ConfigScreen implements Screen {
     @Override
     public void render(float delta) {
         ScreenUtils.clear(0, 0, 0, 1);
-
-        // 1. Dibujamos la mesa de fondo
         stage.getBatch().begin();
         stage.getBatch().draw(textureBackground, 0, 0, game.VIRTUAL_WIDTH, game.VIRTUAL_HEIGHT);
         stage.getBatch().end();
-
-        // 2. Pintamos la interfaz de usuario interactiva (Controles de ajustes o Panel de administración)
         stage.act(Math.min(Gdx.graphics.getDeltaTime(), 1 / 30f));
         stage.draw();
     }
@@ -517,13 +460,12 @@ public class ConfigScreen implements Screen {
     public void dispose() {
         stage.dispose();
         skin.dispose();
-
-        // Liberar estrictamente de la GPU todas las texturas cargadas
         if (textureBackground != null) textureBackground.dispose();
         if (textureBannerConf != null) textureBannerConf.dispose();
         if (textureBtnMas != null) textureBtnMas.dispose();
         if (textureBtnMenos != null) textureBtnMenos.dispose();
         if (textureBtnAdmin != null) textureBtnAdmin.dispose();
         if (textureBtnVolMenu != null) textureBtnVolMenu.dispose();
+        if (textureBannerConsolaAdmin != null) textureBannerConsolaAdmin.dispose();
     }
 }

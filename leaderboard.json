@@ -1,12 +1,17 @@
 [
 {
 	"class": "com.mijuego.data.PlayerScore",
-	"name": "Manuel",
+	"name": "Aristoteles",
+	"score": 50000
+},
+{
+	"class": "com.mijuego.data.PlayerScore",
+	"name": "Boole",
 	"score": 35000
 },
 {
 	"class": "com.mijuego.data.PlayerScore",
-	"name": "Maurizio",
+	"name": "Turing",
 	"score": 28000
 }
 ]
