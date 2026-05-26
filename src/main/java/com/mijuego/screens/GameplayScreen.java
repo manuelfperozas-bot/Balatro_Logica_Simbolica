@@ -9,10 +9,12 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.DragListener;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
 import com.mijuego.MainGame;
-import com.mijuego.utils.ValidadorLogico; // Importamos el motor lógico
+import com.mijuego.utils.ValidadorLogico;
+import java.util.Random;
 
 public class GameplayScreen extends ScreenAdapter {
     private final MainGame game;
@@ -21,18 +23,54 @@ public class GameplayScreen extends ScreenAdapter {
 
     private Texture mesaFondoTex, anteRondasTex, mazoTex, descartesTex, botonOptionTex;
     private Texture jokerAristotelesTex, jokerMorganTex;
-    private Texture texP, texQ, texConj, texDisy;
 
-    private Array<CartaActor> manoJugador;
+    private Array<Texture> poolVariablesTex;
+    private Array<String> poolVariablesTokens;
+    private Array<Texture> poolConectivosTex;
+    private Array<String> poolConectivosTokens;
+
+    private final String[][] MODELOS_PREMISAS = new String[][]{
+            {"Ana\nestudia\ningenieria", "Mauricio\njuega\nfutbol"},
+            {"El\ncielo\nes\nazul", "Carlos\ncocina\npasta"},
+            {"La\ncapital\nes\nCaracas", "El\nagua\nesta\nfria"},
+            {"Paris\nesta\nen\nEuropa", "Sofia\nlee\nun\nlibro"}
+    };
+
+    private Random random;
+
+    // --- DIMENSIONES REDUCIDAS ---
+    private final float ANCHO_CARTA = 175f;
+    private final float ALTO_CARTA = 195f;
+    private final float Y_ZONA_MANO = 40f;
+    private final float ESPACIO_HORIZONTAL_MANO = 130f;
+    private final float Y_ZONA_TABLERO = 340f;
+    private final float ESPACIO_HORIZONTAL_TABLERO = 140f;
+    private final float UMBRAL_Y_DIVISION = 250f;
+
+    private final float[] POSICIONES_X_MANO = new float[6];
+    private CartaActor[] slotsMano = new CartaActor[6];
+    private Array<CartaActor> cartasTablero = new Array<>();
 
     public GameplayScreen(MainGame game) {
         this.game = game;
         this.stage = new Stage(new StretchViewport(1280f, 720f));
         Gdx.input.setInputProcessor(stage);
-        this.manoJugador = new Array<>();
+
+        float anchoTotalMano = ANCHO_CARTA + (5 * ESPACIO_HORIZONTAL_MANO);
+        float xInicialMano = (1280f - anchoTotalMano) / 2f;
+        for (int i = 0; i < 6; i++) {
+            POSICIONES_X_MANO[i] = xInicialMano + (i * ESPACIO_HORIZONTAL_MANO);
+        }
+
+        this.poolVariablesTex = new Array<>();
+        this.poolVariablesTokens = new Array<>();
+        this.poolConectivosTex = new Array<>();
+        this.poolConectivosTokens = new Array<>();
+        this.random = new Random();
 
         cargarAssets();
         construirInterfaz();
+        generarManoAleatoria();
     }
 
     private void cargarAssets() {
@@ -43,21 +81,36 @@ public class GameplayScreen extends ScreenAdapter {
         botonOptionTex = new Texture(Gdx.files.internal("boton_option.png"));
         jokerAristotelesTex = new Texture(Gdx.files.internal("jokerDeAristoteles.png"));
         jokerMorganTex = new Texture(Gdx.files.internal("jokerDeMorgan.png"));
-        texP = new Texture(Gdx.files.internal("carta_p.png"));
-        texQ = new Texture(Gdx.files.internal("carta_q.png"));
-        texConj = new Texture(Gdx.files.internal("carta_conjunción.png"));
-        texDisy = new Texture(Gdx.files.internal("carta_disyuncion.png"));
+
+        registrarVariable("carta_p.png", "p");
+        registrarVariable("carta_q.png", "q");
+        registrarVariable("carta_r.png", "r");
+        registrarVariable("carta_s.png", "s");
+
+        registrarConectivo("carta_negacion.png", "~");
+        registrarConectivo("carta_conjunción.png", "^");
+        registrarConectivo("carta_disyuncion.png", "|");
+        registrarConectivo("carta_condicional.png", "->");
+        registrarConectivo("carta_bicondicional.png", "<->");
+    }
+
+    private void registrarVariable(String ruta, String token) {
+        poolVariablesTex.add(new Texture(Gdx.files.internal(ruta)));
+        poolVariablesTokens.add(token);
+    }
+
+    private void registrarConectivo(String ruta, String token) {
+        poolConectivosTex.add(new Texture(Gdx.files.internal(ruta)));
+        poolConectivosTokens.add(token);
     }
 
     private void construirInterfaz() {
-        // Fondo con recorte antialiasing de bordes
         int srcY = (int) (mesaFondoTex.getHeight() * 0.11f);
         TextureRegion regionMesa = new TextureRegion(mesaFondoTex, 0, srcY, mesaFondoTex.getWidth(), (int)(mesaFondoTex.getHeight() * 0.78f));
         fondoMesa = new Image(regionMesa);
         fondoMesa.setSize(1280f, 720f);
         stage.addActor(fondoMesa);
 
-        // Decoraciones y UI estática
         Image anteRondas = new Image(anteRondasTex);
         anteRondas.setSize(180f, 115f);
         anteRondas.setPosition(35f, 560f);
@@ -75,18 +128,17 @@ public class GameplayScreen extends ScreenAdapter {
 
         Image descartes = new Image(descartesTex);
         descartes.setSize(110f, 155f);
-        descartes.setPosition(985f, 40f);
+        descartes.setPosition(1080f, 40f);
         stage.addActor(descartes);
 
         Image mazo = new Image(mazoTex);
         mazo.setSize(110f, 155f);
-        mazo.setPosition(1115f, 40f);
+        mazo.setPosition(1160f, 40f);
         stage.addActor(mazo);
 
-        // --- BOTÓN "JUGAR MANO" INTERACTIVO ---
-        Image botonJugarMano = new Image(botonOptionTex); // Reutilizamos provisionalmente la textura de botón
+        Image botonJugarMano = new Image(botonOptionTex);
         botonJugarMano.setSize(160f, 60f);
-        botonJugarMano.setPosition(960f, 270f); // Ubicado al lado de las cartas jugadas
+        botonJugarMano.setPosition(1080f, 340f);
         botonJugarMano.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -94,56 +146,216 @@ public class GameplayScreen extends ScreenAdapter {
             }
         });
         stage.addActor(botonJugarMano);
-
-        // Construcción de cartas de la mano
-        float xInicial = 360f;
-        float yMano = 40f;
-        float espacioHorizontal = 125f;
-
-        manoJugador.add(new CartaActor(texP, "p", xInicial, yMano));
-        manoJugador.add(new CartaActor(texConj, "^", xInicial + espacioHorizontal, yMano));
-        manoJugador.add(new CartaActor(texDisy, "|", xInicial + (espacioHorizontal * 2), yMano));
-        manoJugador.add(new CartaActor(texQ, "q", xInicial + (espacioHorizontal * 3), yMano));
-
-        for (CartaActor carta : manoJugador) {
-            stage.addActor(carta);
-        }
     }
 
-    /**
-     * Recolecta las cartas en el tablero, las ordena de izquierda a derecha y calcula su validez
-     */
-    private void procesarManoJugada() {
-        // Filtrar solo las cartas que el usuario subió al tablero (y == 270)
-        Array<CartaActor> cartasEnTablero = new Array<>();
-        for (CartaActor carta : manoJugador) {
-            if (carta.estaEnTablero()) {
-                cartasEnTablero.add(carta);
+    private void generarManoAleatoria() {
+        for (int i = 0; i < 6; i++) {
+            if (slotsMano[i] != null) slotsMano[i].remove();
+        }
+        for (CartaActor c : cartasTablero) {
+            c.remove();
+        }
+        cartasTablero.clear();
+
+        for (int i = 0; i < 6; i++) {
+            CartaActor nuevaCarta = crearCartaAleatoria(POSICIONES_X_MANO[i], Y_ZONA_MANO, i);
+            slotsMano[i] = nuevaCarta;
+            stage.addActor(nuevaCarta);
+        }
+        redibujarEstructuraFija();
+    }
+
+    private CartaActor crearCartaAleatoria(float x, float y, int slot) {
+        Texture texSeleccionada;
+        String tokenSeleccionado;
+        String fraseAsignada = null;
+
+        if (slot < 4) {
+            int indexVariable = random.nextInt(poolVariablesTex.size);
+            texSeleccionada = poolVariablesTex.get(indexVariable);
+            tokenSeleccionado = poolVariablesTokens.get(indexVariable);
+
+            int modeloElegido = random.nextInt(2);
+            fraseAsignada = MODELOS_PREMISAS[indexVariable][modeloElegido];
+        } else {
+            int indexConectivo = random.nextInt(poolConectivosTex.size);
+            texSeleccionada = poolConectivosTex.get(indexConectivo);
+            tokenSeleccionado = poolConectivosTokens.get(indexConectivo);
+        }
+
+        CartaActor nuevaCarta = new CartaActor(texSeleccionada, tokenSeleccionado, fraseAsignada, x, y, slot, this);
+        configurarEventosCarta(nuevaCarta);
+        return nuevaCarta;
+    }
+
+    private void configurarEventosCarta(final CartaActor carta) {
+        carta.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                procesarClicRapido(carta);
+            }
+        });
+
+        carta.addListener(new DragListener() {
+            @Override
+            public void drag(InputEvent event, float x, float y, int pointer) {
+                carta.setPosition(carta.getX() + getDeltaX(), carta.getY() + getDeltaY());
+            }
+
+            @Override
+            public void dragStop(InputEvent event, float x, float y, int pointer) {
+                procesarSoltadoMano(carta);
+            }
+        });
+    }
+
+    public void redibujarEstructuraFija() {
+        for (int i = 0; i < 6; i++) {
+            if (slotsMano[i] != null) {
+                slotsMano[i].setSlotActual(i);
+                slotsMano[i].setSize(ANCHO_CARTA, ALTO_CARTA);
+                slotsMano[i].forzarAposicionBase(POSICIONES_X_MANO[i], Y_ZONA_MANO);
             }
         }
 
-        // Ordenar de izquierda a derecha usando su coordenada X en el espacio virtual
-        cartasEnTablero.sort((c1, c2) -> Float.compare(c1.getX(), c2.getX()));
+        if (cartasTablero.size > 0) {
+            float anchoTotalTablero = ANCHO_CARTA + (cartasTablero.size - 1) * ESPACIO_HORIZONTAL_TABLERO;
+            float xInicialCentrado = (1280f - anchoTotalTablero) / 2f;
 
-        // Extraer los tokens lógicos ordenados
+            for (int i = 0; i < cartasTablero.size; i++) {
+                CartaActor carta = cartasTablero.get(i);
+                float destinoX = xInicialCentrado + (i * ESPACIO_HORIZONTAL_TABLERO);
+                carta.setSize(ANCHO_CARTA, ALTO_CARTA);
+                carta.forzarAposicionBase(destinoX, Y_ZONA_TABLERO);
+            }
+        }
+    }
+
+    public void procesarClicRapido(CartaActor carta) {
+        if (!carta.estaEnTablero()) {
+            int slotOrigen = carta.getSlotActual();
+            slotsMano[slotOrigen] = null;
+            carta.setEnTablero(true);
+            cartasTablero.add(carta);
+        } else {
+            int primerSlotLibreMano = obtenerPrimerSlotLibre(slotsMano);
+            if (primerSlotLibreMano != -1) {
+                cartasTablero.removeValue(carta, true);
+                carta.setEnTablero(false);
+                slotsMano[primerSlotLibreMano] = carta;
+            }
+        }
+        redibujarEstructuraFija();
+    }
+
+    public void procesarSoltadoMano(CartaActor carta) {
+        float centroY = carta.getY() + (carta.getHeight() / 2f);
+        int slotOrigenMano = carta.getSlotActual();
+
+        if (centroY > UMBRAL_Y_DIVISION) {
+            if (!carta.estaEnTablero()) {
+                slotsMano[slotOrigenMano] = null;
+                carta.setEnTablero(true);
+
+                int indiceInsercion = 0;
+                for (int i = 0; i < cartasTablero.size; i++) {
+                    if (carta.getX() > cartasTablero.get(i).getX()) {
+                        indiceInsercion = i + 1;
+                    }
+                }
+                cartasTablero.insert(indiceInsercion, carta);
+            } else {
+                cartasTablero.removeValue(carta, true);
+                int indiceInsercion = 0;
+                for (int i = 0; i < cartasTablero.size; i++) {
+                    if (carta.getX() > cartasTablero.get(i).getX()) {
+                        indiceInsercion = i + 1;
+                    }
+                }
+                cartasTablero.insert(indiceInsercion, carta);
+            }
+        } else {
+            if (carta.estaEnTablero()) {
+                int slotDestinoMano = calcularSlotManoPorCoordenadaX(carta.getX());
+
+                if (slotsMano[slotDestinoMano] == null) {
+                    cartasTablero.removeValue(carta, true);
+                    carta.setEnTablero(false);
+                    slotsMano[slotDestinoMano] = carta;
+                } else {
+                    int primerLibre = obtenerPrimerSlotLibre(slotsMano);
+                    if (primerLibre != -1) {
+                        cartasTablero.removeValue(carta, true);
+                        carta.setEnTablero(false);
+                        slotsMano[primerLibre] = carta;
+                    }
+                }
+            } else {
+                int slotDestinoMano = calcularSlotManoPorCoordenadaX(carta.getX());
+                if (slotDestinoMano != slotOrigenMano) {
+                    CartaActor cartaOcupante = slotsMano[slotDestinoMano];
+                    slotsMano[slotOrigenMano] = cartaOcupante;
+                    if (cartaOcupante != null) {
+                        cartaOcupante.setSlotActual(slotOrigenMano);
+                    }
+                    slotsMano[slotDestinoMano] = carta;
+                }
+            }
+        }
+        redibujarEstructuraFija();
+    }
+
+    private int obtenerPrimerSlotLibre(CartaActor[] slots) {
+        for (int i = 0; i < 6; i++) {
+            if (slots[i] == null) return i;
+        }
+        return -1;
+    }
+
+    private int calcularSlotManoPorCoordenadaX(float x) {
+        int ranuraMejor = 0;
+        float menorDistancia = Float.MAX_VALUE;
+        float centroCartaX = x + (ANCHO_CARTA / 2f);
+
+        for (int i = 0; i < 6; i++) {
+            float centroRanuraX = POSICIONES_X_MANO[i] + (ANCHO_CARTA / 2f);
+            float dist = Math.abs(centroCartaX - centroRanuraX);
+            if (dist < menorDistancia) {
+                menorDistancia = dist;
+                ranuraMejor = i;
+            }
+        }
+        return ranuraMejor;
+    }
+
+    private void procesarManoJugada() {
         Array<String> formulaTokens = new Array<>();
-        for (CartaActor carta : cartasEnTablero) {
+        Array<CartaActor> cartasAeliminar = new Array<>();
+
+        for (CartaActor carta : cartasTablero) {
             formulaTokens.add(carta.getTokenLogico());
+            cartasAeliminar.add(carta);
         }
 
-        System.out.println("--- Evaluando combinación: " + formulaTokens.toString(" ") + " ---");
+        if (formulaTokens.size == 0) return;
 
-        // Evaluar validez con las reglas lógicas
         if (ValidadorLogico.esFormulaValida(formulaTokens)) {
             int[] score = ValidadorLogico.calcularPuntaje(formulaTokens);
-            int fichasBase = score[0];
-            int mult = score[1];
-            int totalPuntos = fichasBase * mult;
+            System.out.println("¡Mano Válida! Puntos: " + (score[0] * score[1]));
 
-            System.out.println("¡Estructura Válida!");
-            System.out.println("Marcador: " + fichasBase + " Chips x " + mult + " Mult = " + totalPuntos + " Puntos");
-        } else {
-            System.out.println("Combinación Inválida. Revisa el orden sintáctico.");
+            for (CartaActor carta : cartasAeliminar) {
+                cartasTablero.removeValue(carta, true);
+                carta.remove();
+            }
+
+            for (int i = 0; i < 6; i++) {
+                if (slotsMano[i] == null) {
+                    CartaActor nuevaCarta = crearCartaAleatoria(POSICIONES_X_MANO[i], Y_ZONA_MANO, i);
+                    slotsMano[i] = nuevaCarta;
+                    stage.addActor(nuevaCarta);
+                }
+            }
+            redibujarEstructuraFija();
         }
     }
 
@@ -159,9 +371,6 @@ public class GameplayScreen extends ScreenAdapter {
     @Override
     public void resize(int width, int height) {
         stage.getViewport().update(width, height, true);
-        if (fondoMesa != null) {
-            fondoMesa.setSize(stage.getViewport().getWorldWidth(), stage.getViewport().getWorldHeight());
-        }
     }
 
     @Override
@@ -174,9 +383,7 @@ public class GameplayScreen extends ScreenAdapter {
         botonOptionTex.dispose();
         jokerAristotelesTex.dispose();
         jokerMorganTex.dispose();
-        texP.dispose();
-        texQ.dispose();
-        texConj.dispose();
-        texDisy.dispose();
+        for (Texture tex : poolVariablesTex) tex.dispose();
+        for (Texture tex : poolConectivosTex) tex.dispose();
     }
 }

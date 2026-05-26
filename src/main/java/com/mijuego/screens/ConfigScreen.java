@@ -278,7 +278,10 @@ public class ConfigScreen implements Screen {
         Label hScore = new Label("Puntuacion", skin);
         Label hAction = new Label("Accion", skin);
 
-        hPos.setFontScale(1.15f); hName.setFontScale(1.15f); hScore.setFontScale(1.15f); hAction.setFontScale(1.15f);
+        hPos.setFontScale(1.15f);
+        hName.setFontScale(1.15f);
+        hScore.setFontScale(1.15f);
+        hAction.setFontScale(1.15f);
 
         scoreListTable.add(hPos).padRight(20).left();
         scoreListTable.add(hName).width(150).padRight(20).left();
@@ -380,7 +383,8 @@ public class ConfigScreen implements Screen {
     private void solicitarClaveAcceso() {
         final Dialog dialog = new Dialog("ACCESO RESTRINGIDO", skin) {
             @Override
-            protected void result(Object object) {}
+            protected void result(Object object) {
+            }
         };
 
         Table dialogTable = new Table();
@@ -430,7 +434,8 @@ public class ConfigScreen implements Screen {
     }
 
     @Override
-    public void show() {}
+    public void show() {
+    }
 
     @Override
     public void render(float delta) {
@@ -448,13 +453,16 @@ public class ConfigScreen implements Screen {
     }
 
     @Override
-    public void pause() {}
+    public void pause() {
+    }
 
     @Override
-    public void resume() {}
+    public void resume() {
+    }
 
     @Override
-    public void hide() {}
+    public void hide() {
+    }
 
     @Override
     public void dispose() {

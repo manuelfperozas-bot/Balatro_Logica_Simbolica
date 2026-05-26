@@ -1,53 +1,99 @@
 package com.mijuego.utils;
 
 import com.badlogic.gdx.utils.Array;
-import com.mijuego.screens.CartaActor;
 
 public class ValidadorLogico {
 
     /**
-     * Valida sintácticamente la estructura de la mano jugada.
-     * Soporta combinaciones sencillas o estructuras complejas (ej: p | q).
+     * Valida si la secuencia de cartas jugada en el tablero tiene sentido sintáctico.
+     * Soporta combinaciones como: "p", "~ p", "p ^ ~ q", "~ p | ~ q -> r", etc.
      */
     public static boolean esFormulaValida(Array<String> tokens) {
-        if (tokens.size == 0) return false;
+        if (tokens == null || tokens.size == 0) return false;
 
-        // Regla básica de tokens alternos: Variable -> Conectivo -> Variable
-        // Evita cosas como "p q" o "^ |"
+        // Estado inicial: esperamos una variable o una negación
+        // true = esperamos operando (variable o '~')
+        // false = esperamos conector binario ('^', '|', '->', '<->')
+        boolean esperandoOperando = true;
+
         for (int i = 0; i < tokens.size; i++) {
-            String t = tokens.get(i);
-            boolean esVariable = t.equals("p") || t.equals("q") || t.equals("r") || t.equals("s");
+            String token = tokens.get(i);
 
-            if (i % 2 == 0) {
-                // Posiciones pares DEBEN ser variables o negaciones de inicio
-                if (!esVariable) return false;
+            if (esperandoOperando) {
+                if (token.equals("~")) {
+                    // La negación es válida aquí, y seguimos esperando una variable después de ella
+                    // Un operador '~' no puede ser el último elemento de la fórmula
+                    if (i == tokens.size - 1) return false;
+                    esperandoOperando = true;
+                } else if (esVariable(token)) {
+                    // Encontró p, q, r o s. Ahora el juego espera un conector binario
+                    esperandoOperando = false;
+                } else {
+                    // Si encuentra un '^', '|', etc. al inicio o tras otro conector, es inválido
+                    return false;
+                }
             } else {
-                // Posiciones impares DEBEN ser conectivos
-                if (esVariable) return false;
+                // Esperamos un conector binario
+                if (esConectorBinario(token)) {
+                    // Es válido. El conector no puede estar al final de la jugada
+                    if (i == tokens.size - 1) return false;
+                    esperandoOperando = true; // Tras el conector, toca otra variable o negación
+                } else {
+                    // Si encuentra dos variables seguidas (ej: "p q"), es inválido
+                    return false;
+                }
             }
         }
-        // Una fórmula válida no puede terminar en un conectivo colgado (ej: p ^)
-        return tokens.size % 2 != 0;
+
+        // Si terminamos procesando correctamente y no nos quedamos esperando una variable colgada
+        return !esperandoOperando;
     }
 
     /**
-     * Calcula los puntos de la mano basado en las propiedades de Balatro (Fichas x Multiplicador)
+     * Calcula el puntaje (Chips y Multiplicador) procesando la combinación de la jugada.
      */
     public static int[] calcularPuntaje(Array<String> tokens) {
-        int fichas = 0;
-        int multiplicador = 1;
+        // [0] = Chips base, [1] = Multiplicador
+        int[] resultado = new int[]{10, 1};
 
-        for (String t : tokens) {
-            if (t.equals("p") || t.equals("q")) {
-                fichas += 30;         // Las variables dan base de fichas
-            } else if (t.equals("^")) {
-                multiplicador += 2;   // La conjunción exige ambos verdaderos (+Mult)
-            } else if (t.equals("|")) {
-                multiplicador += 1;   // La disyunción es más permisiva
+        // 1. Clonar los tokens para no alterar la mano original al procesar
+        Array<String> expresion = new Array<>(tokens);
+
+        // 2. Procesar primero las negaciones combinadas (~p, ~q, etc.)
+        // Si detecta un "~" seguido de una variable, calcula su valor o asigna bonus por combo
+        for (int i = 0; i < expresion.size - 1; i++) {
+            if (expresion.get(i).equals("~")) {
+                // Otorgamos un bonus al multiplicador por lograr una combinación unaria
+                resultado[1] += 1;
+                resultado[0] += 15; // Más puntos de fichas
             }
         }
 
-        // Retorna [Fichas, Multiplicador]
-        return new int[]{fichas, multiplicador};
+        // 3. Procesar conectores binarios jugados en cadena
+        for (String token : expresion) {
+            if (token.equals("^")) {
+                resultado[0] += 20;
+                resultado[1] *= 2; // La conjunción combinada duplica el multi
+            } else if (token.equals("|")) {
+                resultado[0] += 30;
+                resultado[1] += 1;
+            } else if (token.equals("->")) {
+                resultado[0] += 40;
+                resultado[1] += 2;
+            } else if (token.equals("<->")) {
+                resultado[0] += 50;
+                resultado[1] *= 3; // Gran premio por lograr una equivalencia combinada
+            }
+        }
+
+        return resultado;
+    }
+
+    private static boolean esVariable(String token) {
+        return token.equals("p") || token.equals("q") || token.equals("r") || token.equals("s");
+    }
+
+    private static boolean esConectorBinario(String token) {
+        return token.equals("^") || token.equals("|") || token.equals("->") || token.equals("<->");
     }
 }
