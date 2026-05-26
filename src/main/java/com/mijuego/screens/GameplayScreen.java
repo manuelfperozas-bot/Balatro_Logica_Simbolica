@@ -21,7 +21,7 @@ public class GameplayScreen extends ScreenAdapter {
     private Stage stage;
     private Image fondoMesa;
 
-    private Texture mesaFondoTex, anteRondasTex, mazoTex, descartesTex, botonOptionTex;
+    private Texture mesaFondoTex, anteRondasTex, mazoTex, descartesTex, botonOptionTex, marcadorTex, roundScoreTex;
     private Texture jokerAristotelesTex, jokerMorganTex;
 
     private Array<Texture> poolVariablesTex;
@@ -38,13 +38,13 @@ public class GameplayScreen extends ScreenAdapter {
 
     private Random random;
 
-    // --- DIMENSIONES REDUCIDAS ---
-    private final float ANCHO_CARTA = 175f;
+    // --- DIMENSIONES DE LAS CARTAS ---
+    private final float ANCHO_CARTA = 220f;
     private final float ALTO_CARTA = 195f;
     private final float Y_ZONA_MANO = 40f;
-    private final float ESPACIO_HORIZONTAL_MANO = 130f;
+    private final float ESPACIO_HORIZONTAL_MANO = 100f;
     private final float Y_ZONA_TABLERO = 340f;
-    private final float ESPACIO_HORIZONTAL_TABLERO = 140f;
+    private final float ESPACIO_HORIZONTAL_TABLERO = 110f;
     private final float UMBRAL_Y_DIVISION = 250f;
 
     private final float[] POSICIONES_X_MANO = new float[6];
@@ -73,11 +73,17 @@ public class GameplayScreen extends ScreenAdapter {
         generarManoAleatoria();
     }
 
+    public float getEspacioHorizontalMano() { return ESPACIO_HORIZONTAL_MANO; }
+    public float getEspacioHorizontalTablero() { return ESPACIO_HORIZONTAL_TABLERO; }
+    public Array<CartaActor> getCartasTablero() { return cartasTablero; }
+
     private void cargarAssets() {
         mesaFondoTex = new Texture(Gdx.files.internal("mesa_juego_balatro.png"));
         anteRondasTex = new Texture(Gdx.files.internal("Ante_Rondas.png"));
         mazoTex = new Texture(Gdx.files.internal("mazoDeCartas_juego.png"));
         descartesTex = new Texture(Gdx.files.internal("Mano_descartes.png"));
+        marcadorTex = new Texture(Gdx.files.internal("marcador_juego.png"));
+        roundScoreTex = new Texture(Gdx.files.internal("Roundscore_juego.png"));
         botonOptionTex = new Texture(Gdx.files.internal("boton_option.png"));
         jokerAristotelesTex = new Texture(Gdx.files.internal("jokerDeAristoteles.png"));
         jokerMorganTex = new Texture(Gdx.files.internal("jokerDeMorgan.png"));
@@ -105,16 +111,34 @@ public class GameplayScreen extends ScreenAdapter {
     }
 
     private void construirInterfaz() {
-        int srcY = (int) (mesaFondoTex.getHeight() * 0.11f);
-        TextureRegion regionMesa = new TextureRegion(mesaFondoTex, 0, srcY, mesaFondoTex.getWidth(), (int)(mesaFondoTex.getHeight() * 0.78f));
+        TextureRegion regionMesa = new TextureRegion(mesaFondoTex, 0, 0, mesaFondoTex.getWidth(), mesaFondoTex.getHeight());
         fondoMesa = new Image(regionMesa);
         fondoMesa.setSize(1280f, 720f);
         stage.addActor(fondoMesa);
 
+        // Asset 1: Ante / Ronda (Base HUD Izquierdo)
         Image anteRondas = new Image(anteRondasTex);
-        anteRondas.setSize(180f, 115f);
-        anteRondas.setPosition(35f, 560f);
+        anteRondas.setSize(230f, 165f);
+        anteRondas.setPosition(5f, 20f);
         stage.addActor(anteRondas);
+
+        // Asset 2: Manos / Descartes (En el medio, encima del Ante)
+        Image manosDescartes = new Image(descartesTex);
+        manosDescartes.setSize(230f, 165f);
+        manosDescartes.setPosition(5f, 195f);
+        stage.addActor(manosDescartes);
+
+        // Asset 3: Marcador del Juego (Altura recortada a la mitad)
+        Image marcadorJuego = new Image(marcadorTex);
+        marcadorJuego.setSize(230f, 82.5f);
+        marcadorJuego.setPosition(5f, 370f);
+        stage.addActor(marcadorJuego);
+
+        // MODIFICADO: Asset 4 Puntuación de Ronda ajustado (-30% de alto y más cercano al marcador)
+        Image roundScore = new Image(roundScoreTex);
+        roundScore.setSize(230f, 115.5f);     // Alto original reducido un 30% (165f * 0.70)
+        roundScore.setPosition(5f, 454.5f);   // Ubicado a 2f de distancia del borde superior del marcador (370f + 82.5f + 2f)
+        stage.addActor(roundScore);
 
         Image jokerAristoteles = new Image(jokerAristotelesTex);
         jokerAristoteles.setSize(115f, 155f);
@@ -126,26 +150,21 @@ public class GameplayScreen extends ScreenAdapter {
         jokerMorgan.setPosition(570f, 520f);
         stage.addActor(jokerMorgan);
 
-        Image descartes = new Image(descartesTex);
-        descartes.setSize(110f, 155f);
-        descartes.setPosition(1080f, 40f);
-        stage.addActor(descartes);
-
         Image mazo = new Image(mazoTex);
         mazo.setSize(110f, 155f);
         mazo.setPosition(1160f, 40f);
         stage.addActor(mazo);
 
-        Image botonJugarMano = new Image(botonOptionTex);
-        botonJugarMano.setSize(160f, 60f);
-        botonJugarMano.setPosition(1080f, 340f);
-        botonJugarMano.addListener(new ClickListener() {
+        Image botonOpciones = new Image(botonOptionTex);
+        botonOpciones.setSize(75f, 105f);
+        botonOpciones.setPosition(1185f, 595f);
+        botonOpciones.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 procesarManoJugada();
             }
         });
-        stage.addActor(botonJugarMano);
+        stage.addActor(botonOpciones);
     }
 
     private void generarManoAleatoria() {
@@ -204,7 +223,7 @@ public class GameplayScreen extends ScreenAdapter {
 
             @Override
             public void dragStop(InputEvent event, float x, float y, int pointer) {
-                procesarSoltadoMano(carta);
+                procesarSoltadoMano(carta, event.getStageX());
             }
         });
     }
@@ -215,6 +234,7 @@ public class GameplayScreen extends ScreenAdapter {
                 slotsMano[i].setSlotActual(i);
                 slotsMano[i].setSize(ANCHO_CARTA, ALTO_CARTA);
                 slotsMano[i].forzarAposicionBase(POSICIONES_X_MANO[i], Y_ZONA_MANO);
+                slotsMano[i].toFront();
             }
         }
 
@@ -227,6 +247,7 @@ public class GameplayScreen extends ScreenAdapter {
                 float destinoX = xInicialCentrado + (i * ESPACIO_HORIZONTAL_TABLERO);
                 carta.setSize(ANCHO_CARTA, ALTO_CARTA);
                 carta.forzarAposicionBase(destinoX, Y_ZONA_TABLERO);
+                carta.toFront();
             }
         }
     }
@@ -248,7 +269,7 @@ public class GameplayScreen extends ScreenAdapter {
         redibujarEstructuraFija();
     }
 
-    public void procesarSoltadoMano(CartaActor carta) {
+    public void procesarSoltadoMano(CartaActor carta, float stageX) {
         float centroY = carta.getY() + (carta.getHeight() / 2f);
         int slotOrigenMano = carta.getSlotActual();
 
@@ -276,7 +297,7 @@ public class GameplayScreen extends ScreenAdapter {
             }
         } else {
             if (carta.estaEnTablero()) {
-                int slotDestinoMano = calcularSlotManoPorCoordenadaX(carta.getX());
+                int slotDestinoMano = calcularSlotManoPorCoordenadaX(stageX);
 
                 if (slotsMano[slotDestinoMano] == null) {
                     cartasTablero.removeValue(carta, true);
@@ -291,7 +312,7 @@ public class GameplayScreen extends ScreenAdapter {
                     }
                 }
             } else {
-                int slotDestinoMano = calcularSlotManoPorCoordenadaX(carta.getX());
+                int slotDestinoMano = calcularSlotManoPorCoordenadaX(stageX);
                 if (slotDestinoMano != slotOrigenMano) {
                     CartaActor cartaOcupante = slotsMano[slotDestinoMano];
                     slotsMano[slotOrigenMano] = cartaOcupante;
@@ -312,14 +333,13 @@ public class GameplayScreen extends ScreenAdapter {
         return -1;
     }
 
-    private int calcularSlotManoPorCoordenadaX(float x) {
+    private int calcularSlotManoPorCoordenadaX(float stageX) {
         int ranuraMejor = 0;
         float menorDistancia = Float.MAX_VALUE;
-        float centroCartaX = x + (ANCHO_CARTA / 2f);
 
         for (int i = 0; i < 6; i++) {
             float centroRanuraX = POSICIONES_X_MANO[i] + (ANCHO_CARTA / 2f);
-            float dist = Math.abs(centroCartaX - centroRanuraX);
+            float dist = Math.abs(stageX - centroRanuraX);
             if (dist < menorDistancia) {
                 menorDistancia = dist;
                 ranuraMejor = i;
@@ -361,9 +381,9 @@ public class GameplayScreen extends ScreenAdapter {
 
     @Override
     public void render(float delta) {
+        stage.getViewport().apply();
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-        stage.getViewport().apply();
         stage.act(delta);
         stage.draw();
     }
@@ -380,6 +400,8 @@ public class GameplayScreen extends ScreenAdapter {
         anteRondasTex.dispose();
         mazoTex.dispose();
         descartesTex.dispose();
+        marcadorTex.dispose();
+        roundScoreTex.dispose();
         botonOptionTex.dispose();
         jokerAristotelesTex.dispose();
         jokerMorganTex.dispose();
