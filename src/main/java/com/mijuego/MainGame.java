@@ -7,7 +7,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.StretchViewport; // Cambiado para soportar pantalla completa
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.mijuego.screens.MainMenuScreen;
 
@@ -33,7 +33,11 @@ public class MainGame extends Game {
     @Override
     public void create() {
         batch = new SpriteBatch();
-        viewport = new FitViewport(VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+        // SOLUCIÓN CRÍTICA: Cambiamos FitViewport por StretchViewport a nivel global.
+        // Esto elimina las restricciones de aspecto y permite que el fondo de la mesa
+        // se estire libremente hasta ocupar el 100% de la ventana física de renderizado.
+        viewport = new StretchViewport(VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
         // Generamos dinámicamente una textura blanca de 1x1 píxel en memoria de video
         Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
@@ -55,9 +59,8 @@ public class MainGame extends Game {
         super.render();
 
         // 2. CAPA DE BRILLO CENTRALIZADA MULTIPLATAFORMA
-        // Usar SpriteBatch con una textura de 1x1 es infinitamente más robusto en LibGDX
-        // que usar ShapeRenderer, ya que hereda y gesiona correctamente todos los estados
-        // de mezcla (Blending) e iluminación sin verse afectado por el renderizado de Scene2D (Stage).
+        // Al usar StretchViewport, el filtro de brillo se estirará de forma idéntica
+        // al fondo de tu mesa de juego, cubriendo la pantalla completa de manera uniforme.
         if (brilloNivel < 10) {
             float factorOscuridad = (10 - brilloNivel) * 0.08f;
 

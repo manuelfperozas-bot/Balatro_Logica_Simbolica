@@ -161,6 +161,7 @@ public class MainMenuScreen implements Screen {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 System.out.println("Cargando la mesa de juego...");
+                game.setScreen(new GameplayScreen(game));
                 // game.setScreen(new GameScreen(game));
             }
         });

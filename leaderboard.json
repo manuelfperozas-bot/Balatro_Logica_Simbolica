@@ -13,5 +13,10 @@
 	"class": "com.mijuego.data.PlayerScore",
 	"name": "Turing",
 	"score": 28000
+},
+{
+	"class": "com.mijuego.data.PlayerScore",
+	"name": "Manuel",
+	"score": 80000
 }
 ]
