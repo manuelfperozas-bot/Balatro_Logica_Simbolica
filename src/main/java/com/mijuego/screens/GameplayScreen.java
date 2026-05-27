@@ -2,12 +2,15 @@ package com.mijuego.screens;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.DragListener;
 import com.badlogic.gdx.utils.Array;
@@ -21,8 +24,9 @@ public class GameplayScreen extends ScreenAdapter {
     private Stage stage;
     private Image fondoMesa;
 
-    private Texture mesaFondoTex, anteRondasTex, mazoTex, descartesTex, botonOptionTex, marcadorTex, roundScoreTex;
+    private Texture mesaFondoTex, anteRondasTex, mazoTex, descartesTex, marcadorTex, roundScoreTex, objetivosTex;
     private Texture jokerAristotelesTex, jokerMorganTex;
+    private Texture botonJugarTex, botonDescartarTex, botonOpcionesTex;
 
     private Array<Texture> poolVariablesTex;
     private Array<String> poolVariablesTokens;
@@ -30,7 +34,7 @@ public class GameplayScreen extends ScreenAdapter {
     private Array<String> poolConectivosTokens;
 
     private final String[][] MODELOS_PREMISAS = new String[][]{
-            {"Ana\nestudia\ningenieria", "Mauricio\njuega\nfutbol"},
+            {"Ana\nestudia\ningenieria", "Mauricio\njuega\nfútbol"},
             {"El\ncielo\nes\nazul", "Carlos\ncocina\npasta"},
             {"La\ncapital\nes\nCaracas", "El\nagua\nesta\nfria"},
             {"Paris\nesta\nen\nEuropa", "Sofia\nlee\nun\nlibro"}
@@ -38,7 +42,31 @@ public class GameplayScreen extends ScreenAdapter {
 
     private Random random;
 
-    // --- DIMENSIONES DE LAS CARTAS ---
+    // --- VARIABLES DE CONTROL DE JUEGO ---
+    private int manosRestantes = 3;
+    private int descartesRestantes = 2;
+    private int puntajeAcumulado = 0;
+    private int puntajeObjetivo = 1000;
+    private int fichasUltimaMano = 0;
+    private int multUltimaMano = 0;
+
+    // --- SISTEMA DE NIVELES Y ESTADÍSTICAS ---
+    private int nivelActual = 1;
+    private final int MAX_NIVEL = 4;
+    private int totalManosJugadas = 0;
+
+    // --- ELEMENTOS VISUALES DEL HUD ---
+    private BitmapFont fuenteContador;
+    private Label labelManos;
+    private Label labelDescartes;
+    private Label labelPuntaje;
+    private Label labelObjetivo;
+    private Label labelFichasMano;
+    private Label labelMultMano;
+    private Label labelNivel;
+    private Label labelRonda;
+
+    // --- DIMENSIONES DE LAS CARTAS Y ZONAS ---
     private final float ANCHO_CARTA = 220f;
     private final float ALTO_CARTA = 195f;
     private final float Y_ZONA_MANO = 40f;
@@ -50,6 +78,7 @@ public class GameplayScreen extends ScreenAdapter {
     private final float[] POSICIONES_X_MANO = new float[6];
     private CartaActor[] slotsMano = new CartaActor[6];
     private Array<CartaActor> cartasTablero = new Array<>();
+    private Array<CartaActor> cartasSeleccionadas = new Array<>();
 
     public GameplayScreen(MainGame game) {
         this.game = game;
@@ -70,12 +99,8 @@ public class GameplayScreen extends ScreenAdapter {
 
         cargarAssets();
         construirInterfaz();
-        generarManoAleatoria();
+        generarManoInicial();
     }
-
-    public float getEspacioHorizontalMano() { return ESPACIO_HORIZONTAL_MANO; }
-    public float getEspacioHorizontalTablero() { return ESPACIO_HORIZONTAL_TABLERO; }
-    public Array<CartaActor> getCartasTablero() { return cartasTablero; }
 
     private void cargarAssets() {
         mesaFondoTex = new Texture(Gdx.files.internal("mesa_juego_balatro.png"));
@@ -84,9 +109,13 @@ public class GameplayScreen extends ScreenAdapter {
         descartesTex = new Texture(Gdx.files.internal("Mano_descartes.png"));
         marcadorTex = new Texture(Gdx.files.internal("marcador_juego.png"));
         roundScoreTex = new Texture(Gdx.files.internal("Roundscore_juego.png"));
-        botonOptionTex = new Texture(Gdx.files.internal("boton_option.png"));
         jokerAristotelesTex = new Texture(Gdx.files.internal("jokerDeAristoteles.png"));
         jokerMorganTex = new Texture(Gdx.files.internal("jokerDeMorgan.png"));
+        objetivosTex = new Texture(Gdx.files.internal("objetivos.png"));
+
+        botonJugarTex = new Texture(Gdx.files.internal("botonJugar.png"));
+        botonDescartarTex = new Texture(Gdx.files.internal("botonDescartar.png"));
+        botonOpcionesTex = new Texture(Gdx.files.internal("boton_opciones.png"));
 
         registrarVariable("carta_p.png", "p");
         registrarVariable("carta_q.png", "q");
@@ -98,6 +127,9 @@ public class GameplayScreen extends ScreenAdapter {
         registrarConectivo("carta_disyuncion.png", "|");
         registrarConectivo("carta_condicional.png", "->");
         registrarConectivo("carta_bicondicional.png", "<->");
+
+        fuenteContador = new BitmapFont();
+        fuenteContador.getData().setScale(2.2f);
     }
 
     private void registrarVariable(String ruta, String token) {
@@ -111,35 +143,39 @@ public class GameplayScreen extends ScreenAdapter {
     }
 
     private void construirInterfaz() {
+        // 1. CAPA FONDO PRINCIPAL
         TextureRegion regionMesa = new TextureRegion(mesaFondoTex, 0, 0, mesaFondoTex.getWidth(), mesaFondoTex.getHeight());
         fondoMesa = new Image(regionMesa);
         fondoMesa.setSize(1280f, 720f);
         stage.addActor(fondoMesa);
 
-        // Asset 1: Ante / Ronda (Base HUD Izquierdo)
+        // 2. CAPA DE CONTENEDORES / CONTORNOS TEXTURIZADOS (ABAJO HACIA ARRIBA)
         Image anteRondas = new Image(anteRondasTex);
         anteRondas.setSize(230f, 165f);
         anteRondas.setPosition(5f, 20f);
         stage.addActor(anteRondas);
 
-        // Asset 2: Manos / Descartes (En el medio, encima del Ante)
         Image manosDescartes = new Image(descartesTex);
         manosDescartes.setSize(230f, 165f);
         manosDescartes.setPosition(5f, 195f);
         stage.addActor(manosDescartes);
 
-        // Asset 3: Marcador del Juego (Altura recortada a la mitad)
         Image marcadorJuego = new Image(marcadorTex);
         marcadorJuego.setSize(230f, 82.5f);
         marcadorJuego.setPosition(5f, 370f);
         stage.addActor(marcadorJuego);
 
-        // MODIFICADO: Asset 4 Puntuación de Ronda ajustado (-30% de alto y más cercano al marcador)
         Image roundScore = new Image(roundScoreTex);
-        roundScore.setSize(230f, 115.5f);     // Alto original reducido un 30% (165f * 0.70)
-        roundScore.setPosition(5f, 454.5f);   // Ubicado a 2f de distancia del borde superior del marcador (370f + 82.5f + 2f)
+        roundScore.setSize(230f, 115.5f);
+        roundScore.setPosition(5f, 454.5f);
         stage.addActor(roundScore);
 
+        Image panelObjetivos = new Image(objetivosTex);
+        panelObjetivos.setSize(230f, 91f);
+        panelObjetivos.setPosition(5f, 572f);
+        stage.addActor(panelObjetivos);
+
+        // DECORACIONES EXTRAS Y BOTONES
         Image jokerAristoteles = new Image(jokerAristotelesTex);
         jokerAristoteles.setSize(115f, 155f);
         jokerAristoteles.setPosition(440f, 520f);
@@ -155,19 +191,78 @@ public class GameplayScreen extends ScreenAdapter {
         mazo.setPosition(1160f, 40f);
         stage.addActor(mazo);
 
-        Image botonOpciones = new Image(botonOptionTex);
-        botonOpciones.setSize(75f, 105f);
-        botonOpciones.setPosition(1185f, 595f);
-        botonOpciones.addListener(new ClickListener() {
+        float anchoBoton = 150f;
+        float altoBoton = 50f;
+        float xBotones = 1280f - anchoBoton - 15f;
+        float yBotonJugar = (720f / 2f) + (altoBoton / 2f) + 8f;
+        float yBotonDescartar = (720f / 2f) - (altoBoton / 2f) - 8f;
+
+        Image botonJugar = new Image(botonJugarTex);
+        botonJugar.setSize(anchoBoton, altoBoton);
+        botonJugar.setPosition(xBotones, yBotonJugar);
+        botonJugar.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 procesarManoJugada();
             }
         });
+        stage.addActor(botonJugar);
+
+        Image botonDescartar = new Image(botonDescartarTex);
+        botonDescartar.setSize(anchoBoton, altoBoton);
+        botonDescartar.setPosition(xBotones, yBotonDescartar);
+        botonDescartar.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                procesarDescarte();
+            }
+        });
+        stage.addActor(botonDescartar);
+
+        Image botonOpciones = new Image(botonOpcionesTex);
+        botonOpciones.setSize(100f, 45f);
+        botonOpciones.setPosition(1280f - 115f, 720f - 60f);
         stage.addActor(botonOpciones);
+
+        // 3. CAPA SUPREMA: LABELS Y TEXTOS (Se registran al final para garantizar su visibilidad)
+        Label.LabelStyle estiloContadores = new Label.LabelStyle(fuenteContador, Color.WHITE);
+
+        // Textos del bloque inferior (Ante / Ronda) - Y: 42f centrado verticalmente
+        labelNivel = new Label(nivelActual + "/" + MAX_NIVEL, estiloContadores);
+        labelNivel.setPosition(32f, 42f);
+        stage.addActor(labelNivel);
+
+        labelRonda = new Label(String.valueOf(totalManosJugadas), estiloContadores);
+        labelRonda.setPosition(150f, 42f);
+        stage.addActor(labelRonda);
+
+        // Resto de indicadores numéricos del HUD
+        labelManos = new Label(String.valueOf(manosRestantes), estiloContadores);
+        labelManos.setPosition(52f, 222f);
+        stage.addActor(labelManos);
+
+        labelDescartes = new Label(String.valueOf(descartesRestantes), estiloContadores);
+        labelDescartes.setPosition(158f, 222f);
+        stage.addActor(labelDescartes);
+
+        labelFichasMano = new Label(String.valueOf(fichasUltimaMano), estiloContadores);
+        labelFichasMano.setPosition(32f, 394f);
+        stage.addActor(labelFichasMano);
+
+        labelMultMano = new Label(String.valueOf(multUltimaMano), estiloContadores);
+        labelMultMano.setPosition(158f, 395f);
+        stage.addActor(labelMultMano);
+
+        labelPuntaje = new Label(String.valueOf(puntajeAcumulado), estiloContadores);
+        labelPuntaje.setPosition(160f, 488f);
+        stage.addActor(labelPuntaje);
+
+        labelObjetivo = new Label(String.valueOf(puntajeObjetivo), estiloContadores);
+        labelObjetivo.setPosition(88f, 585f);
+        stage.addActor(labelObjetivo);
     }
 
-    private void generarManoAleatoria() {
+    private void generarManoInicial() {
         for (int i = 0; i < 6; i++) {
             if (slotsMano[i] != null) slotsMano[i].remove();
         }
@@ -175,31 +270,50 @@ public class GameplayScreen extends ScreenAdapter {
             c.remove();
         }
         cartasTablero.clear();
+        cartasSeleccionadas.clear();
 
         for (int i = 0; i < 6; i++) {
-            CartaActor nuevaCarta = crearCartaAleatoria(POSICIONES_X_MANO[i], Y_ZONA_MANO, i);
+            Texture texSeleccionada;
+            String tokenSeleccionado;
+            String fraseAsignada = null;
+
+            if (i < 4) {
+                int indexVariable = random.nextInt(poolVariablesTex.size);
+                texSeleccionada = poolVariablesTex.get(indexVariable);
+                tokenSeleccionado = poolVariablesTokens.get(indexVariable);
+                int modeloElegido = random.nextInt(2);
+                fraseAsignada = MODELOS_PREMISAS[indexVariable][modeloElegido];
+            } else {
+                int indexConectivo = random.nextInt(poolConectivosTex.size);
+                texSeleccionada = poolConectivosTex.get(indexConectivo);
+                tokenSeleccionado = poolConectivosTokens.get(indexConectivo);
+            }
+
+            CartaActor nuevaCarta = new CartaActor(texSeleccionada, tokenSeleccionado, fraseAsignada, POSICIONES_X_MANO[i], Y_ZONA_MANO, i, this);
+            configurarEventosCarta(nuevaCarta);
             slotsMano[i] = nuevaCarta;
             stage.addActor(nuevaCarta);
         }
         redibujarEstructuraFija();
     }
 
-    private CartaActor crearCartaAleatoria(float x, float y, int slot) {
+    private CartaActor crearCartaCompletamenteAleatoria(float x, float y, int slot) {
         Texture texSeleccionada;
         String tokenSeleccionado;
         String fraseAsignada = null;
 
-        if (slot < 4) {
-            int indexVariable = random.nextInt(poolVariablesTex.size);
-            texSeleccionada = poolVariablesTex.get(indexVariable);
-            tokenSeleccionado = poolVariablesTokens.get(indexVariable);
+        int totalElementosPool = poolVariablesTex.size + poolConectivosTex.size;
+        int indiceGlobal = random.nextInt(totalElementosPool);
 
+        if (indiceGlobal < poolVariablesTex.size) {
+            texSeleccionada = poolVariablesTex.get(indiceGlobal);
+            tokenSeleccionado = poolVariablesTokens.get(indiceGlobal);
             int modeloElegido = random.nextInt(2);
-            fraseAsignada = MODELOS_PREMISAS[indexVariable][modeloElegido];
+            fraseAsignada = MODELOS_PREMISAS[indiceGlobal][modeloElegido];
         } else {
-            int indexConectivo = random.nextInt(poolConectivosTex.size);
-            texSeleccionada = poolConectivosTex.get(indexConectivo);
-            tokenSeleccionado = poolConectivosTokens.get(indexConectivo);
+            int indiceConectivo = indiceGlobal - poolVariablesTex.size;
+            texSeleccionada = poolConectivosTex.get(indiceConectivo);
+            tokenSeleccionado = poolConectivosTokens.get(indiceConectivo);
         }
 
         CartaActor nuevaCarta = new CartaActor(texSeleccionada, tokenSeleccionado, fraseAsignada, x, y, slot, this);
@@ -229,6 +343,8 @@ public class GameplayScreen extends ScreenAdapter {
     }
 
     public void redibujarEstructuraFija() {
+        cartasSeleccionadas.clear();
+
         for (int i = 0; i < 6; i++) {
             if (slotsMano[i] != null) {
                 slotsMano[i].setSlotActual(i);
@@ -248,8 +364,18 @@ public class GameplayScreen extends ScreenAdapter {
                 carta.setSize(ANCHO_CARTA, ALTO_CARTA);
                 carta.forzarAposicionBase(destinoX, Y_ZONA_TABLERO);
                 carta.toFront();
+                cartasSeleccionadas.add(carta);
             }
         }
+
+        if (labelManos != null) labelManos.toFront();
+        if (labelDescartes != null) labelDescartes.toFront();
+        if (labelPuntaje != null) labelPuntaje.toFront();
+        if (labelObjetivo != null) labelObjetivo.toFront();
+        if (labelFichasMano != null) labelFichasMano.toFront();
+        if (labelMultMano != null) labelMultMano.toFront();
+        if (labelNivel != null) labelNivel.toFront();
+        if (labelRonda != null) labelRonda.toFront();
     }
 
     public void procesarClicRapido(CartaActor carta) {
@@ -349,10 +475,12 @@ public class GameplayScreen extends ScreenAdapter {
     }
 
     private void procesarManoJugada() {
+        if (manosRestantes <= 0) return;
+
         Array<String> formulaTokens = new Array<>();
         Array<CartaActor> cartasAeliminar = new Array<>();
 
-        for (CartaActor carta : cartasTablero) {
+        for (CartaActor carta : cartasSeleccionadas) {
             formulaTokens.add(carta.getTokenLogico());
             cartasAeliminar.add(carta);
         }
@@ -361,23 +489,89 @@ public class GameplayScreen extends ScreenAdapter {
 
         if (ValidadorLogico.esFormulaValida(formulaTokens)) {
             int[] score = ValidadorLogico.calcularPuntaje(formulaTokens);
-            System.out.println("¡Mano Válida! Puntos: " + (score[0] * score[1]));
+
+            fichasUltimaMano = score[0];
+            multUltimaMano = score[1];
+            labelFichasMano.setText(String.valueOf(fichasUltimaMano));
+            labelMultMano.setText(String.valueOf(multUltimaMano));
+
+            int puntosMano = fichasUltimaMano * multUltimaMano;
+            puntajeAcumulado += puntosMano;
+            labelPuntaje.setText(String.valueOf(puntajeAcumulado));
+
+            manosRestantes--;
+            labelManos.setText(String.valueOf(manosRestantes));
+
+            totalManosJugadas++;
+            labelRonda.setText(String.valueOf(totalManosJugadas));
 
             for (CartaActor carta : cartasAeliminar) {
                 cartasTablero.removeValue(carta, true);
                 carta.remove();
             }
 
+            if (puntajeAcumulado >= puntajeObjetivo) {
+                if (nivelActual < MAX_NIVEL) {
+                    nivelActual++;
+                    puntajeObjetivo *= 2;
+                    puntajeAcumulado = 0;
+                    manosRestantes = 3;
+                    descartesRestantes = 2;
+
+                    labelNivel.setText(nivelActual + "/" + MAX_NIVEL);
+                    labelObjetivo.setText(String.valueOf(puntajeObjetivo));
+                    labelPuntaje.setText(String.valueOf(puntajeAcumulado));
+                    labelManos.setText(String.valueOf(manosRestantes));
+                    labelDescartes.setText(String.valueOf(descartesRestantes));
+
+                    System.out.println("¡Nivel superado! Pasando al nivel " + nivelActual);
+                    generarManoInicial();
+                    return;
+                } else {
+                    System.out.println("¡Felicidades, ganaste el juego completo!");
+                }
+            } else if (manosRestantes == 0) {
+                System.out.println("Juego terminado. No alcanzaste el objetivo.");
+            }
+
             for (int i = 0; i < 6; i++) {
                 if (slotsMano[i] == null) {
-                    CartaActor nuevaCarta = crearCartaAleatoria(POSICIONES_X_MANO[i], Y_ZONA_MANO, i);
+                    CartaActor nuevaCarta = crearCartaCompletamenteAleatoria(POSICIONES_X_MANO[i], Y_ZONA_MANO, i);
                     slotsMano[i] = nuevaCarta;
                     stage.addActor(nuevaCarta);
                 }
             }
+            cartasSeleccionadas.clear();
             redibujarEstructuraFija();
+        } else {
+            System.out.println("Fórmula no válida.");
         }
     }
+
+    private void procesarDescarte() {
+        if (descartesRestantes <= 0 || cartasTablero.size == 0) return;
+
+        descartesRestantes--;
+        labelDescartes.setText(String.valueOf(descartesRestantes));
+
+        for (CartaActor carta : cartasTablero) {
+            carta.remove();
+        }
+        cartasTablero.clear();
+        cartasSeleccionadas.clear();
+
+        for (int i = 0; i < 6; i++) {
+            if (slotsMano[i] == null) {
+                CartaActor nuevaCarta = crearCartaCompletamenteAleatoria(POSICIONES_X_MANO[i], Y_ZONA_MANO, i);
+                slotsMano[i] = nuevaCarta;
+                stage.addActor(nuevaCarta);
+            }
+        }
+        redibujarEstructuraFija();
+    }
+
+    public float getEspacioHorizontalMano() { return ESPACIO_HORIZONTAL_MANO; }
+    public float getEspacioHorizontalTablero() { return ESPACIO_HORIZONTAL_TABLERO; }
 
     @Override
     public void render(float delta) {
@@ -402,9 +596,14 @@ public class GameplayScreen extends ScreenAdapter {
         descartesTex.dispose();
         marcadorTex.dispose();
         roundScoreTex.dispose();
-        botonOptionTex.dispose();
         jokerAristotelesTex.dispose();
         jokerMorganTex.dispose();
+        fuenteContador.dispose();
+        if (objetivosTex != null) objetivosTex.dispose();
+        if (botonJugarTex != null) botonJugarTex.dispose();
+        if (botonDescartarTex != null) botonDescartarTex.dispose();
+        if (botonOpcionesTex != null) botonOpcionesTex.dispose();
+
         for (Texture tex : poolVariablesTex) tex.dispose();
         for (Texture tex : poolConectivosTex) tex.dispose();
     }
