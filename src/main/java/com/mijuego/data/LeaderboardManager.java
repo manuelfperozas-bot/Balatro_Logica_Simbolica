@@ -11,6 +11,7 @@ import java.util.Comparator;
 /**
  * Gestiona el almacenamiento persistente de las puntuaciones de los jugadores
  * utilizando archivos JSON locales en el directorio del juego.
+ * Permite registrar a cualquier jugador validando que solo se guarde su récord más alto.
  */
 public class LeaderboardManager {
 
@@ -20,7 +21,6 @@ public class LeaderboardManager {
 
     public LeaderboardManager() {
         // Gdx.files.local guarda el archivo en el directorio raíz de ejecución del juego
-        // Es un directorio seguro con permisos de lectura y escritura garantizados.
         this.fileHandle = Gdx.files.local(FILE_NAME);
         this.json = new Json();
         this.json.setOutputType(OutputType.json);
@@ -41,7 +41,7 @@ public class LeaderboardManager {
             if (fileHandle.exists()) {
                 ArrayList<PlayerScore> scores = json.fromJson(ArrayList.class, PlayerScore.class, fileHandle);
                 if (scores != null) {
-                    // Ordenamos de mayor a menor puntuación antes de retornar
+                    // Ordenamos de mayor a menor puntuación antes de retornar para mantener la estética
                     sortScores(scores);
                     return scores;
                 }
@@ -53,21 +53,44 @@ public class LeaderboardManager {
     }
 
     /**
-     * Agrega una nueva puntuación. Si califica dentro del top histórico,
-     * se insertará, ordenará y guardará de manera permanente.
+     * Registra la puntuación de cualquier jugador.
+     * Si el nombre no existe en la base de datos se registra desde cero.
+     * Si ya existe, SOLO reemplaza su puntuación si la nueva es estrictamente MAYOR que su récord actual.
      */
     public void addScore(String name, int score) {
         ArrayList<PlayerScore> currentScores = getScores();
-        currentScores.add(new PlayerScore(name, score));
+        PlayerScore jugadorExistente = null;
+        String nombreLimpio = name.trim();
 
-        // Ordenamos el ranking
-        sortScores(currentScores);
-
-        // Opcional: Mantener únicamente el Top 10 para evitar archivos innecesariamente grandes
-        if (currentScores.size() > 10) {
-            currentScores = new ArrayList<>(currentScores.subList(0, 10));
+        // Buscamos si el nombre ya está registrado en el archivo JSON
+        for (PlayerScore ps : currentScores) {
+            if (ps.getName().equalsIgnoreCase(nombreLimpio)) {
+                jugadorExistente = ps;
+                break;
+            }
         }
 
+        if (jugadorExistente == null) {
+            // Caso 1: No está en la base de datos -> Se registra de inmediato
+            currentScores.add(new PlayerScore(nombreLimpio, score));
+            Gdx.app.log("Leaderboard", "Nuevo jugador registrado: " + nombreLimpio + " con " + score + " puntos.");
+        } else {
+            // Caso 2: Ya existe -> SOLO se actualiza si la puntuación obtenida supera su récord guardado
+            if (score > jugadorExistente.getScore()) {
+                Gdx.app.log("Leaderboard", "¡Nuevo récord para " + nombreLimpio + "! Puntuación anterior: "
+                        + jugadorExistente.getScore() + " -> Nueva puntuación: " + score);
+                jugadorExistente.setScore(score);
+            } else {
+                Gdx.app.log("Leaderboard", "Puntuación de " + nombreLimpio + " (" + score
+                        + ") es menor o igual al récord existente (" + jugadorExistente.getScore() + "). No se actualiza.");
+                return; // Cortamos el flujo aquí para evitar sobreescribir el JSON innecesariamente
+            }
+        }
+
+        // Ordenamos el ranking para que persista organizado jerárquicamente
+        sortScores(currentScores);
+
+        // Guardamos la lista completa. Al no recortar la lista, crecerá dinámicamente sin límite de usuarios
         saveScores(currentScores);
     }
 
@@ -95,7 +118,7 @@ public class LeaderboardManager {
     }
 
     /**
-     * Llena el archivo con las puntuaciones icónicas iniciales que diseñaste.
+     * Llena el archivo con las puntuaciones icónicas iniciales del juego.
      */
     private void createDefaultScores() {
         ArrayList<PlayerScore> defaultScores = new ArrayList<>();

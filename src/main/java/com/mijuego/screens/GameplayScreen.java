@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
@@ -11,11 +12,14 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.DragListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
 import com.mijuego.MainGame;
+import com.mijuego.data.LeaderboardManager;
 import com.mijuego.utils.ValidadorLogico;
 import java.util.Random;
 
@@ -65,6 +69,19 @@ public class GameplayScreen extends ScreenAdapter {
     private Label labelMultMano;
     private Label labelNivel;
     private Label labelRonda;
+
+    // --- COMPONENTES DE LAS PANTALLAS DE TRANSICIÓN (VICTORIA / DERROTA) ---
+    private boolean nivelSuperado = false;
+    private boolean juegoTerminado = false; // Estado estricto de derrota
+    private Image overlayFondoGris;
+    private Label labelEstadoPantalla; // Reutilizado para "OBJETIVO ALCANZADO" o "JUEGO TERMINADO"
+    private Image botonContinuar;
+
+    // --- COMPONENTES PARA REGISTRAR EL NOMBRE DENTRO DEL JUEGO ---
+    private TextField campoNombre;
+    private Image botonRegistrarNombre;
+    private Texture fondoInputTex;
+    private Texture cursorTex;
 
     // --- DIMENSIONES DE LAS CARTAS Y ZONAS ---
     private final float ANCHO_CARTA = 220f;
@@ -130,6 +147,20 @@ public class GameplayScreen extends ScreenAdapter {
 
         fuenteContador = new BitmapFont();
         fuenteContador.getData().setScale(2.2f);
+
+        // Generar dinámicamente un fondo gris oscuro para la caja de texto
+        Pixmap pixmap = new Pixmap(300, 50, Pixmap.Format.RGBA8888);
+        pixmap.setColor(Color.DARK_GRAY);
+        pixmap.fill();
+        fondoInputTex = new Texture(pixmap);
+        pixmap.dispose();
+
+        // Generar dinámicamente la barrita blanca del cursor de escritura
+        Pixmap cursorPixmap = new Pixmap(3, 32, Pixmap.Format.RGBA8888);
+        cursorPixmap.setColor(Color.WHITE);
+        cursorPixmap.fill();
+        cursorTex = new Texture(cursorPixmap);
+        cursorPixmap.dispose();
     }
 
     private void registrarVariable(String ruta, String token) {
@@ -149,7 +180,7 @@ public class GameplayScreen extends ScreenAdapter {
         fondoMesa.setSize(1280f, 720f);
         stage.addActor(fondoMesa);
 
-        // 2. CAPA DE CONTENEDORES / CONTORNOS TEXTURIZADOS (ABAJO HACIA ARRIBA)
+        // 2. CAPA DE CONTENEDORES / CONTORNOS TEXTURIZADOS
         Image anteRondas = new Image(anteRondasTex);
         anteRondas.setSize(230f, 165f);
         anteRondas.setPosition(5f, 20f);
@@ -175,15 +206,16 @@ public class GameplayScreen extends ScreenAdapter {
         panelObjetivos.setPosition(5f, 572f);
         stage.addActor(panelObjetivos);
 
-        // DECORACIONES EXTRAS Y BOTONES
         Image jokerAristoteles = new Image(jokerAristotelesTex);
         jokerAristoteles.setSize(115f, 155f);
         jokerAristoteles.setPosition(440f, 520f);
+        jokerAristoteles.setVisible(false); // Ocultado visualmente
         stage.addActor(jokerAristoteles);
 
         Image jokerMorgan = new Image(jokerMorganTex);
         jokerMorgan.setSize(115f, 155f);
         jokerMorgan.setPosition(570f, 520f);
+        jokerMorgan.setVisible(false); // Ocultado visualmente
         stage.addActor(jokerMorgan);
 
         Image mazo = new Image(mazoTex);
@@ -203,7 +235,7 @@ public class GameplayScreen extends ScreenAdapter {
         botonJugar.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                procesarManoJugada();
+                if (!nivelSuperado && !juegoTerminado) procesarManoJugada();
             }
         });
         stage.addActor(botonJugar);
@@ -214,7 +246,7 @@ public class GameplayScreen extends ScreenAdapter {
         botonDescartar.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                procesarDescarte();
+                if (!nivelSuperado && !juegoTerminado) procesarDescarte();
             }
         });
         stage.addActor(botonDescartar);
@@ -224,19 +256,21 @@ public class GameplayScreen extends ScreenAdapter {
         botonOpciones.setPosition(1280f - 115f, 720f - 60f);
         stage.addActor(botonOpciones);
 
-        // 3. CAPA SUPREMA: LABELS Y TEXTOS (Se registran al final para garantizar su visibilidad)
+        // 3. CAPA SUPREMA: LABELS Y TEXTOS
         Label.LabelStyle estiloContadores = new Label.LabelStyle(fuenteContador, Color.WHITE);
 
-        // Textos del bloque inferior (Ante / Ronda) - Y: 42f centrado verticalmente
         labelNivel = new Label(nivelActual + "/" + MAX_NIVEL, estiloContadores);
-        labelNivel.setPosition(32f, 42f);
+        labelNivel.setAlignment(com.badlogic.gdx.utils.Align.center);
+        float xCentradoNivel = (5f + (115f / 2f)) - (labelNivel.getPrefWidth() / 2f);
+        labelNivel.setPosition(xCentradoNivel, 72f);
         stage.addActor(labelNivel);
 
         labelRonda = new Label(String.valueOf(totalManosJugadas), estiloContadores);
-        labelRonda.setPosition(150f, 42f);
+        labelRonda.setAlignment(com.badlogic.gdx.utils.Align.center);
+        float xCentradoRonda = (120f + (115f / 2f)) - (labelRonda.getPrefWidth() / 2f);
+        labelRonda.setPosition(xCentradoRonda, 72f);
         stage.addActor(labelRonda);
 
-        // Resto de indicadores numéricos del HUD
         labelManos = new Label(String.valueOf(manosRestantes), estiloContadores);
         labelManos.setPosition(52f, 222f);
         stage.addActor(labelManos);
@@ -260,6 +294,151 @@ public class GameplayScreen extends ScreenAdapter {
         labelObjetivo = new Label(String.valueOf(puntajeObjetivo), estiloContadores);
         labelObjetivo.setPosition(88f, 585f);
         stage.addActor(labelObjetivo);
+
+        // 4. CAPA DE INTERFAZ DE FIN DE NIVEL / PARTIDA
+        Texture pixelGris = new Texture(Gdx.files.internal("carta_p.png"));
+        overlayFondoGris = new Image(new TextureRegion(pixelGris, 0, 0, 1, 1));
+        overlayFondoGris.setSize(1280f, 720f);
+        overlayFondoGris.setColor(0f, 0f, 0f, 0.75f);
+        overlayFondoGris.setVisible(false);
+        stage.addActor(overlayFondoGris);
+
+        labelEstadoPantalla = new Label("", estiloContadores);
+        labelEstadoPantalla.setAlignment(com.badlogic.gdx.utils.Align.center);
+        labelEstadoPantalla.setVisible(false);
+        stage.addActor(labelEstadoPantalla);
+
+        botonContinuar = new Image(botonJugarTex);
+        botonContinuar.setSize(220f, 65f);
+        botonContinuar.setPosition((1280f / 2f) - (220f / 2f), 280f);
+        botonContinuar.setVisible(false);
+        botonContinuar.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                if (nivelSuperado) {
+                    ocultarPantallaTransicion();
+                    avanzarSiguienteNivel();
+                }
+            }
+        });
+        stage.addActor(botonContinuar);
+
+        // Estilo del Campo de Texto
+        TextField.TextFieldStyle estiloCampo = new TextField.TextFieldStyle();
+        estiloCampo.font = fuenteContador;
+        estiloCampo.fontColor = Color.WHITE;
+        estiloCampo.background = new TextureRegionDrawable(new TextureRegion(fondoInputTex));
+        estiloCampo.cursor = new TextureRegionDrawable(new TextureRegion(cursorTex));
+
+        // Inicializar campo integrado
+        campoNombre = new TextField("", estiloCampo);
+        campoNombre.setSize(340f, 55f);
+        campoNombre.setPosition((1280f / 2f) - (340f / 2f), 310f);
+        campoNombre.setMessageText("Tu Nombre Aqui");
+        campoNombre.setAlignment(com.badlogic.gdx.utils.Align.center);
+        campoNombre.setVisible(false);
+        stage.addActor(campoNombre);
+
+        // Botón integrado para registrar y volver al menú principal
+        botonRegistrarNombre = new Image(botonJugarTex);
+        botonRegistrarNombre.setSize(180f, 55f);
+        botonRegistrarNombre.setPosition((1280f / 2f) - (180f / 2f), 230f);
+        botonRegistrarNombre.setVisible(false);
+        botonRegistrarNombre.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                String textoIngresado = campoNombre.getText();
+                LeaderboardManager manager = new LeaderboardManager();
+
+                if (textoIngresado != null && !textoIngresado.trim().isEmpty()) {
+                    manager.addScore(textoIngresado, puntajeAcumulado);
+                } else {
+                    manager.addScore("Anonimo", puntajeAcumulado);
+                }
+
+                System.out.println("Puntuacion procesada con exito.");
+                ocultarPantallaTransicion();
+
+                // Te redirige limpiamente al menú de inicio del juego
+                game.setScreen(new MainMenuScreen(game));
+            }
+        });
+        stage.addActor(botonRegistrarNombre);
+    }
+
+    private void mostrarPantallaVictoria() {
+        nivelSuperado = true;
+        overlayFondoGris.setVisible(true);
+
+        labelEstadoPantalla.setText("¡OBJETIVO ALCANZADO!");
+        labelEstadoPantalla.getStyle().fontColor = Color.GOLD;
+        labelEstadoPantalla.setPosition((1360f / 2f) - (labelEstadoPantalla.getPrefWidth() / 2f), 420f);
+        labelEstadoPantalla.setVisible(true);
+
+        botonContinuar.setVisible(true);
+        redibujarEstructuraFija();
+    }
+
+    private void mostrarPantallaDerrota() {
+        juegoTerminado = true;
+        overlayFondoGris.setVisible(true);
+
+        labelEstadoPantalla.setText("JUEGO TERMINADO");
+        labelEstadoPantalla.getStyle().fontColor = Color.RED;
+
+        // Centrado horizontal original desplazado 160 píxeles a la derecha
+        float xDesplazado = ((1280f / 2f) - (labelEstadoPantalla.getPrefWidth() / 2f)) + 160f;
+        labelEstadoPantalla.setPosition(xDesplazado, 420f);
+        labelEstadoPantalla.setVisible(true);
+
+        botonContinuar.setVisible(false);
+
+        // Mostrar widgets integrados
+        campoNombre.setText("");
+        campoNombre.setVisible(true);
+        botonRegistrarNombre.setVisible(true);
+        stage.setKeyboardFocus(campoNombre);
+
+        redibujarEstructuraFija();
+    }
+
+    private void ocultarPantallaTransicion() {
+        nivelSuperado = false;
+        juegoTerminado = false;
+        overlayFondoGris.setVisible(false);
+        labelEstadoPantalla.setVisible(false);
+        botonContinuar.setVisible(false);
+        campoNombre.setVisible(false);
+        botonRegistrarNombre.setVisible(false);
+    }
+
+    private void verificarEstadosDeRonda() {
+        if (puntajeAcumulado >= puntajeObjetivo) {
+            mostrarPantallaVictoria();
+        } else if (manosRestantes <= 0) {
+            mostrarPantallaDerrota();
+        }
+    }
+
+    private void avanzarSiguienteNivel() {
+        if (nivelActual < MAX_NIVEL) {
+            nivelActual++;
+            puntajeObjetivo *= 2.5;
+            puntajeAcumulado = 0;
+            manosRestantes = 3;
+            descartesRestantes = 2;
+
+            labelNivel.setText(nivelActual + "/" + MAX_NIVEL);
+            labelObjetivo.setText(String.valueOf(puntajeObjetivo));
+            labelPuntaje.setText(String.valueOf(puntajeAcumulado));
+            labelManos.setText(String.valueOf(manosRestantes));
+            labelDescartes.setText(String.valueOf(descartesRestantes));
+
+            labelNivel.setX((5f + (115f / 2f)) - (labelNivel.getPrefWidth() / 2f));
+            generarManoInicial();
+        } else {
+            System.out.println("¡Felicidades, ganaste el juego completo!");
+        }
     }
 
     private void generarManoInicial() {
@@ -321,23 +500,27 @@ public class GameplayScreen extends ScreenAdapter {
         return nuevaCarta;
     }
 
+    private void configureEventosCarta(final CartaActor carta) {
+        configurarEventosCarta(carta);
+    }
+
     private void configurarEventosCarta(final CartaActor carta) {
         carta.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                procesarClicRapido(carta);
+                if (!nivelSuperado && !juegoTerminado) procesarClicRapido(carta);
             }
         });
 
         carta.addListener(new DragListener() {
             @Override
             public void drag(InputEvent event, float x, float y, int pointer) {
-                carta.setPosition(carta.getX() + getDeltaX(), carta.getY() + getDeltaY());
+                if (!nivelSuperado && !juegoTerminado) carta.setPosition(carta.getX() + getDeltaX(), carta.getY() + getDeltaY());
             }
 
             @Override
             public void dragStop(InputEvent event, float x, float y, int pointer) {
-                procesarSoltadoMano(carta, event.getStageX());
+                if (!nivelSuperado && !juegoTerminado) procesarSoltadoMano(carta, event.getStageX());
             }
         });
     }
@@ -376,6 +559,17 @@ public class GameplayScreen extends ScreenAdapter {
         if (labelMultMano != null) labelMultMano.toFront();
         if (labelNivel != null) labelNivel.toFront();
         if (labelRonda != null) labelRonda.toFront();
+
+        if (nivelSuperado || juegoTerminado) {
+            overlayFondoGris.toFront();
+            labelEstadoPantalla.toFront();
+            if (nivelSuperado) {
+                botonContinuar.toFront();
+            } else {
+                campoNombre.toFront();
+                botonRegistrarNombre.toFront();
+            }
+        }
     }
 
     public void procesarClicRapido(CartaActor carta) {
@@ -475,7 +669,7 @@ public class GameplayScreen extends ScreenAdapter {
     }
 
     private void procesarManoJugada() {
-        if (manosRestantes <= 0) return;
+        if (manosRestantes <= 0 || nivelSuperado || juegoTerminado) return;
 
         Array<String> formulaTokens = new Array<>();
         Array<CartaActor> cartasAeliminar = new Array<>();
@@ -504,34 +698,11 @@ public class GameplayScreen extends ScreenAdapter {
 
             totalManosJugadas++;
             labelRonda.setText(String.valueOf(totalManosJugadas));
+            labelRonda.setX((120f + (115f / 2f)) - (labelRonda.getPrefWidth() / 2f));
 
             for (CartaActor carta : cartasAeliminar) {
                 cartasTablero.removeValue(carta, true);
                 carta.remove();
-            }
-
-            if (puntajeAcumulado >= puntajeObjetivo) {
-                if (nivelActual < MAX_NIVEL) {
-                    nivelActual++;
-                    puntajeObjetivo *= 2;
-                    puntajeAcumulado = 0;
-                    manosRestantes = 3;
-                    descartesRestantes = 2;
-
-                    labelNivel.setText(nivelActual + "/" + MAX_NIVEL);
-                    labelObjetivo.setText(String.valueOf(puntajeObjetivo));
-                    labelPuntaje.setText(String.valueOf(puntajeAcumulado));
-                    labelManos.setText(String.valueOf(manosRestantes));
-                    labelDescartes.setText(String.valueOf(descartesRestantes));
-
-                    System.out.println("¡Nivel superado! Pasando al nivel " + nivelActual);
-                    generarManoInicial();
-                    return;
-                } else {
-                    System.out.println("¡Felicidades, ganaste el juego completo!");
-                }
-            } else if (manosRestantes == 0) {
-                System.out.println("Juego terminado. No alcanzaste el objetivo.");
             }
 
             for (int i = 0; i < 6; i++) {
@@ -542,14 +713,19 @@ public class GameplayScreen extends ScreenAdapter {
                 }
             }
             cartasSeleccionadas.clear();
+
+            verificarEstadosDeRonda();
             redibujarEstructuraFija();
         } else {
             System.out.println("Fórmula no válida.");
+            manosRestantes--;
+            labelManos.setText(String.valueOf(manosRestantes));
+            verificarEstadosDeRonda();
         }
     }
 
     private void procesarDescarte() {
-        if (descartesRestantes <= 0 || cartasTablero.size == 0) return;
+        if (descartesRestantes <= 0 || cartasTablero.size == 0 || nivelSuperado || juegoTerminado) return;
 
         descartesRestantes--;
         labelDescartes.setText(String.valueOf(descartesRestantes));
@@ -567,6 +743,8 @@ public class GameplayScreen extends ScreenAdapter {
                 stage.addActor(nuevaCarta);
             }
         }
+
+        verificarEstadosDeRonda();
         redibujarEstructuraFija();
     }
 
@@ -603,6 +781,8 @@ public class GameplayScreen extends ScreenAdapter {
         if (botonJugarTex != null) botonJugarTex.dispose();
         if (botonDescartarTex != null) botonDescartarTex.dispose();
         if (botonOpcionesTex != null) botonOpcionesTex.dispose();
+        if (fondoInputTex != null) fondoInputTex.dispose();
+        if (cursorTex != null) cursorTex.dispose();
 
         for (Texture tex : poolVariablesTex) tex.dispose();
         for (Texture tex : poolConectivosTex) tex.dispose();
