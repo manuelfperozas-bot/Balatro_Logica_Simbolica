@@ -372,7 +372,10 @@ public class GameplayScreen extends ScreenAdapter {
 
         labelEstadoPantalla.setText("¡OBJETIVO ALCANZADO!");
         labelEstadoPantalla.getStyle().fontColor = Color.GOLD;
-        labelEstadoPantalla.setPosition((1360f / 2f) - (labelEstadoPantalla.getPrefWidth() / 2f), 420f);
+
+        // MODIFICACIÓN: Desplazado +230 píxeles a la derecha (los 80 previos + 150 solicitados)
+        float xDesplazadoVictoria = ((1280f / 2f) - (labelEstadoPantalla.getPrefWidth() / 2f)) + 230f;
+        labelEstadoPantalla.setPosition(xDesplazadoVictoria, 420f);
         labelEstadoPantalla.setVisible(true);
 
         botonContinuar.setVisible(true);
@@ -386,7 +389,7 @@ public class GameplayScreen extends ScreenAdapter {
         labelEstadoPantalla.setText("JUEGO TERMINADO");
         labelEstadoPantalla.getStyle().fontColor = Color.RED;
 
-        // Centrado horizontal original desplazado 160 píxeles a la derecha
+        // Centrado horizontal original de derrota desplazado 160 píxeles a la derecha
         float xDesplazado = ((1280f / 2f) - (labelEstadoPantalla.getPrefWidth() / 2f)) + 160f;
         labelEstadoPantalla.setPosition(xDesplazado, 420f);
         labelEstadoPantalla.setVisible(true);

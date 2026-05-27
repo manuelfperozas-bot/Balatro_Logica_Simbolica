@@ -3,5 +3,10 @@
 	"class": "com.mijuego.data.PlayerScore",
 	"name": "Manuel",
 	"score": 1350
+},
+{
+	"class": "com.mijuego.data.PlayerScore",
+	"name": "Mau",
+	"score": 760
 }
 ]
